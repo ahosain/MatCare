@@ -3,7 +3,11 @@
 Every dataset used by this project, where it came from, and how to verify it.
 All URLs were confirmed to return HTTP 200 on **2026-08-11**. Retrieval
 timestamps, byte counts and SHA-256 hashes for the copy actually used are
-recorded in `data/raw/_manifest.json`, written by `scripts/00_download_data.py`.
+recorded in `data/_manifest.json`, written by `scripts/00_download_data.py`.
+
+Raw files live under `data/<theme>/raw/` and derived files under
+`data/<theme>/processed/`, where theme is one of `boundaries`, `population`,
+`centroids`, `street_network`, `facilities`. Paths come from `scripts/paths.py`.
 
 Nothing in this file is inferred. If a fact is not verifiable from the source
 listed, it is not stated.
@@ -19,6 +23,7 @@ appreciated.
 | Key | File | Size | What it provides |
 |---|---|---|---|
 | `blocks` | `tl_2024_48_tabblock20.zip` | 436 MB | 2020 tabulation blocks, Texas |
+| `zcta_gazetteer` | `2024_Gaz_zcta_national.zip` | 1 MB | ZCTA centroids, geocoding fallback |
 | `block_groups` | `tl_2024_48_bg.zip` | 50 MB | Block group polygons |
 | `tracts` | `tl_2024_48_tract.zip` | 33 MB | Census tract polygons |
 | `places` | `tl_2024_48_place.zip` | 9.7 MB | Incorporated places / CDPs |
@@ -88,34 +93,59 @@ obligation; OSM does.
 
 ---
 
-## 3. Facility data — *provenance incomplete*
+## 3. Facility data
 
-`data/texas_obs_facilities_final.csv` (170 rows) is the only facility input
-present in the repository. It was produced by `MCD.ipynb` from two upstream
-files that are **not in the repository and not reproducible from it**:
+Both upstream files are now present in `data/facilities/raw/`, and the facility
+list is fully reproducible from them via `scripts/01_prepare_facilities.py`.
 
-| Referenced in `MCD.ipynb` | Status |
-|---|---|
-| `test_HIFLD.parquet` | missing |
-| `Cleaned_CMOS_Data.csv` | missing |
-| `Cleaned_texas_hospitals_HIFLD.csv` | missing |
-| `texas_obs_fac_with_ob_srvc.csv` | missing |
+### Correction: "CMOS" is the CMS Provider of Services file
 
-The notebook cites the HIFLD hospital layer as
-`https://source.coop/seerai/hifld/hospitals/hospitals/hospitals.parquet`. That
-host now returns an HTML page rather than the Parquet file for unauthenticated
-requests, so the HIFLD side could not be re-derived here.
+An earlier revision of this document guessed that "CMOS" meant the Texas HHS
+*Certificate of Maternal and Obstetric Services*. **That was wrong.** Inspecting
+`CMOS Dataset Description.pdf` (733 pages, record layout dated 2023-04-02) shows
+the files are an extract of the **CMS Provider of Services (POS) current file**,
+hospital category. The column names are CMS POS names — `PRVDR_NUM`,
+`PGM_TRMNTN_CD`, `OB_SRVC_CD`, `NEONTL_ICU_SRVC_CD`.
 
-CMOS refers to the Texas HHS **Certificate of Maternal and Obstetric Services**
-facility list, which supplies the `OB_SRVC_CD` obstetric level-of-care field.
-That field was computed in `MCD.ipynb` but is **absent from the final CSV** — the
-level-of-care information was dropped before the file that survived.
+| File | Rows | Contents |
+|---|---|---|
+| `CMOS Data.csv` | 77,522 | CMS POS, all US providers |
+| `Cleaned_CMOS_Data.csv` | 4,907 | filtered to hospitals reporting obstetric service; 377 in Texas |
+| `Cleaned_texas_hospitals_HIFLD.csv` | 876 | HIFLD Texas hospitals, with coordinates |
+| `CMOS Dataset Description.pdf` | — | official CMS POS record layout and code definitions |
+| `texas_obs_facilities_final.csv` | 170 | **superseded** output of the old exact-name join |
 
-### Consequence
+### Code definitions (quoted from the record layout, not inferred)
 
-The facility list cannot currently be regenerated, audited, or corrected. See
-`docs/FINDINGS.md` § 1 — validation shows it is materially incomplete. Restoring
-these three files is the highest-priority action for the project.
+```
+OB_SRVC_CD      0=NOT PROVIDED  1=PROVIDED BY STAFF
+                2=PROVIDED UNDER ARRANGEMENT
+                3=PROVIDED BY STAFF AND UNDER ARRANGEMENT
+
+PGM_TRMNTN_CD   00=ACTIVE PROVIDER  01=VOLUNTARY-MERGER, CLOSURE
+                02..07=other terminations
+```
+
+`NEONTL_ICU_SRVC_CD` and `NEONTL_NRSRY_SRVC_CD` use the same 0–3 scale and give
+the NICU-capability proxy used for level-of-care analysis.
+
+### Why the two sources must be matched
+
+CMS POS is authoritative for *which* hospitals provide obstetrics but carries no
+coordinates. HIFLD is authoritative for *where* hospitals are but does not record
+obstetric service. Neither carries the other's identifier, so they are joined by
+name, address and geography — see `docs/METHODS.md` § 2 and `docs/FINDINGS.md`
+§ 1. The rebuilt matcher achieves 98.1% coverage; the previous exact-name join
+achieved 64%.
+
+### HIFLD re-download
+
+`MCD.ipynb` cites `https://source.coop/seerai/hifld/hospitals/hospitals/hospitals.parquet`.
+That host now returns an HTML page rather than the Parquet file for
+unauthenticated requests, so HIFLD cannot currently be refreshed automatically.
+The supplied `Cleaned_texas_hospitals_HIFLD.csv` is used instead, and its vintage
+should be confirmed before publication — four hospitals in the CMS list postdate
+it.
 
 ---
 

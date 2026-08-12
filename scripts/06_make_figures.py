@@ -46,10 +46,11 @@ from matplotlib.colors import BoundaryNorm, LinearSegmentedColormap
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PROC = PROJECT_ROOT / "data" / "processed"
-FIGS = PROJECT_ROOT / "results" / "figures"
-TABLES = PROJECT_ROOT / "results" / "tables"
+import paths as P
+
+PROJECT_ROOT = P.PROJECT_ROOT
+FIGS = P.FIGURES
+TABLES = P.TABLES
 
 TX_ALBERS = "EPSG:3083"
 
@@ -133,10 +134,10 @@ def city_layer(ax, crs: str) -> None:
 
 
 def load_layers():
-    counties = gpd.read_parquet(PROC / "counties.parquet").to_crs(TX_ALBERS)
-    fac = gpd.read_parquet(PROC / "facilities_analysis.parquet").to_crs(TX_ALBERS)
-    bg = gpd.read_parquet(PROC / "blockgroups.parquet").to_crs(TX_ALBERS)
-    acc = pd.read_parquet(PROC / "block_access.parquet")
+    counties = gpd.read_parquet(P.BOUNDARIES_PROC / "counties.parquet").to_crs(TX_ALBERS)
+    fac = gpd.read_parquet(P.FACILITIES_PROC / "facilities_analysis.parquet").to_crs(TX_ALBERS)
+    bg = gpd.read_parquet(P.POPULATION_PROC / "blockgroups.parquet").to_crs(TX_ALBERS)
+    acc = pd.read_parquet(P.FACILITIES_PROC / "block_access.parquet")
     return counties, fac, bg, acc
 
 

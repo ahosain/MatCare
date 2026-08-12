@@ -1,0 +1,7 @@
+match_stage,n,mean_score
+1. exact name + ZIP,145,100.0
+2. exact name + city,9,100.0
+3. address + ZIP,39,100.0
+4. address + city,2,100.0
+5. fuzzy name + ZIP,11,99.11883392278547
+7. fuzzy address + city,1,100.0

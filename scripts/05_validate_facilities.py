@@ -51,10 +51,11 @@ import osmium
 import pandas as pd
 from shapely.geometry import Point
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PBF = PROJECT_ROOT / "data" / "raw" / "texas-latest.osm.pbf"
-PROC = PROJECT_ROOT / "data" / "processed"
-TABLES = PROJECT_ROOT / "results" / "tables"
+import paths as P
+
+PROJECT_ROOT = P.PROJECT_ROOT
+PBF = P.NETWORK_RAW / "texas-latest.osm.pbf"
+TABLES = P.TABLES
 
 TX_ALBERS = "EPSG:3083"
 WGS84 = "EPSG:4326"
@@ -124,10 +125,10 @@ def extract_osm_hospitals() -> gpd.GeoDataFrame:
 def main() -> int:
     TABLES.mkdir(parents=True, exist_ok=True)
 
-    counties = gpd.read_parquet(PROC / "counties.parquet")
-    fac = gpd.read_parquet(PROC / "facilities.parquet").to_crs(TX_ALBERS)
+    counties = gpd.read_parquet(P.BOUNDARIES_PROC / "counties.parquet")
+    fac = gpd.read_parquet(P.FACILITIES_PROC / "facilities.parquet").to_crs(TX_ALBERS)
     blocks = pd.read_parquet(
-        PROC / "block_access.parquet", columns=["COUNTYFP", "POP20", "net_min", "reachable"]
+        P.FACILITIES_PROC / "block_access.parquet", columns=["COUNTYFP", "POP20", "net_min", "reachable"]
     )
     # Unreachable blocks carry net_min = inf; including them would turn every
     # county mean containing one into inf. Population totals keep all blocks,
@@ -141,7 +142,7 @@ def main() -> int:
     osm_by_cty = (
         osm.groupby("COUNTYFP5").agg(osm_hospitals=("osm_name", "size")).astype(int)
     )
-    fac_by_cty = fac.groupby("COUNTYFIPS").agg(matched_facilities=("NAME", "size"))
+    fac_by_cty = fac.groupby("COUNTYFIPS").agg(matched_facilities=("FAC_NAME", "size"))
 
     pop_by_cty = blocks.groupby("COUNTYFP").agg(
         population=("POP20", "sum"),

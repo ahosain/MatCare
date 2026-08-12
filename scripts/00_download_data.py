@@ -37,9 +37,10 @@ import requests
 # --------------------------------------------------------------------------
 # Paths
 # --------------------------------------------------------------------------
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RAW_DIR = PROJECT_ROOT / "data" / "raw"
-MANIFEST_PATH = RAW_DIR / "_manifest.json"
+import paths as P
+
+PROJECT_ROOT = P.PROJECT_ROOT
+MANIFEST_PATH = P.MANIFEST
 
 CHUNK = 1 << 20  # 1 MiB streaming chunk
 TIMEOUT = (30, 120)  # (connect, read) seconds
@@ -54,6 +55,7 @@ TIMEOUT = (30, 120)  # (connect, read) seconds
 SOURCES: dict[str, dict] = {
     # ---------------------------------------------------------------- census
     "blocks": {
+        "theme": "population",
         "url": "https://www2.census.gov/geo/tiger/TIGER2024/TABBLOCK20/tl_2024_48_tabblock20.zip",
         "filename": "tl_2024_48_tabblock20.zip",
         "expected_bytes": 435_898_815,
@@ -64,18 +66,21 @@ SOURCES: dict[str, dict] = {
         ),
     },
     "block_groups": {
+        "theme": "population",
         "url": "https://www2.census.gov/geo/tiger/TIGER2024/BG/tl_2024_48_bg.zip",
         "filename": "tl_2024_48_bg.zip",
         "expected_bytes": 50_301_029,
         "description": "TIGER/Line 2024 block group polygons, Texas.",
     },
     "tracts": {
+        "theme": "population",
         "url": "https://www2.census.gov/geo/tiger/TIGER2024/TRACT/tl_2024_48_tract.zip",
         "filename": "tl_2024_48_tract.zip",
         "expected_bytes": 32_628_659,
         "description": "TIGER/Line 2024 census tract polygons, Texas.",
     },
     "places": {
+        "theme": "boundaries",
         "url": "https://www2.census.gov/geo/tiger/TIGER2024/PLACE/tl_2024_48_place.zip",
         "filename": "tl_2024_48_place.zip",
         "expected_bytes": 9_717_329,
@@ -85,6 +90,7 @@ SOURCES: dict[str, dict] = {
         ),
     },
     "counties_cb": {
+        "theme": "boundaries",
         "url": "https://www2.census.gov/geo/tiger/GENZ2023/shp/cb_2023_us_county_500k.zip",
         "filename": "cb_2023_us_county_500k.zip",
         "expected_bytes": 11_630_077,
@@ -95,6 +101,7 @@ SOURCES: dict[str, dict] = {
     },
     # ------------------------------------------- population-weighted centroids
     "cenpop_bg": {
+        "theme": "centroids",
         "url": "https://www2.census.gov/geo/docs/reference/cenpop2020/blkgrp/CenPop2020_Mean_BG48.txt",
         "filename": "CenPop2020_Mean_BG48.txt",
         "expected_bytes": 815_278,
@@ -106,19 +113,33 @@ SOURCES: dict[str, dict] = {
         ),
     },
     "cenpop_tract": {
+        "theme": "centroids",
         "url": "https://www2.census.gov/geo/docs/reference/cenpop2020/tract/CenPop2020_Mean_TR48.txt",
         "filename": "CenPop2020_Mean_TR48.txt",
         "expected_bytes": 289_614,
         "description": "2020 Census Centers of Population, tract level, Texas.",
     },
     "cenpop_county": {
+        "theme": "centroids",
         "url": "https://www2.census.gov/geo/docs/reference/cenpop2020/county/CenPop2020_Mean_CO.txt",
         "filename": "CenPop2020_Mean_CO.txt",
         "expected_bytes": None,
         "description": "2020 Census Centers of Population, county level, national.",
     },
+    "zcta_gazetteer": {
+        "theme": "centroids",
+        "url": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2024_Gazetteer/2024_Gaz_zcta_national.zip",
+        "filename": "2024_Gaz_zcta_national.zip",
+        "expected_bytes": 1_013_803,
+        "description": (
+            "Census 2024 Gazetteer ZCTA file: centroid latitude/longitude for "
+            "every ZIP Code Tabulation Area. Used only as a fallback location "
+            "for hospitals that cannot be matched to a HIFLD coordinate."
+        ),
+    },
     # ------------------------------------------------------------------- osm
     "osm": {
+        "theme": "street_network",
         "url": "https://download.geofabrik.de/north-america/us/texas-latest.osm.pbf",
         "filename": "texas-latest.osm.pbf",
         "expected_bytes": 713_707_612,
@@ -130,6 +151,7 @@ SOURCES: dict[str, dict] = {
         ),
     },
     "osm_md5": {
+        "theme": "street_network",
         "url": "https://download.geofabrik.de/north-america/us/texas-latest.osm.pbf.md5",
         "filename": "texas-latest.osm.pbf.md5",
         "expected_bytes": None,
@@ -181,7 +203,7 @@ def remote_size(url: str, session: requests.Session) -> tuple[int | None, str]:
 
 
 def download(key: str, spec: dict, session: requests.Session, manifest: dict) -> None:
-    dest = RAW_DIR / spec["filename"]
+    dest = P.raw(spec["theme"]) / spec["filename"]
     total, resolved = remote_size(spec["url"], session)
 
     if dest.exists() and total is not None and dest.stat().st_size == total:
@@ -241,6 +263,7 @@ def record(key: str, spec: dict, dest: Path, resolved: str, manifest: dict) -> N
         "sha256": sha256_of(dest),
         "retrieved_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "description": spec["description"],
+        "theme": spec["theme"],
     }
     save_manifest(manifest)
 
@@ -257,10 +280,10 @@ def main() -> int:
 
     if args.list:
         for k, s in SOURCES.items():
-            print(f"{k:16s} {human(s.get('expected_bytes')):>9s}  {s['url']}")
+            print(f"{k:16s} {s['theme']:15s} {human(s.get('expected_bytes')):>9s}  {s['url']}")
         return 0
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    P.ensure_tree()
     manifest = load_manifest()
     keys = args.only or list(SOURCES)
 
@@ -271,7 +294,7 @@ def main() -> int:
 
     if args.verify:
         for k in keys:
-            dest = RAW_DIR / SOURCES[k]["filename"]
+            dest = P.raw(SOURCES[k]["theme"]) / SOURCES[k]["filename"]
             status = (
                 f"{human(dest.stat().st_size)}  {sha256_of(dest)[:16]}..."
                 if dest.exists()

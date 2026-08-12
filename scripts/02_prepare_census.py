@@ -31,13 +31,13 @@ areal-centroid bias that would otherwise distort rural travel estimates.
 
 Outputs (GeoParquet, EPSG:3083)
 -------------------------------
-data/processed/blocks.parquet          block polygons + POP20 + HOUSING20
-data/processed/block_points.parquet    block internal points (routing input)
-data/processed/blockgroups.parquet     block group polygons
-data/processed/bg_points.parquet       BG population-weighted centroids
-data/processed/tract_points.parquet    tract population-weighted centroids
-data/processed/counties.parquet        Texas county polygons (cartographic)
-data/processed/places.parquet          incorporated places (for map labels)
+data/<theme>/processed/blocks.parquet          block polygons + POP20 + HOUSING20
+data/<theme>/processed/block_points.parquet    block internal points (routing input)
+data/<theme>/processed/blockgroups.parquet     block group polygons
+data/<theme>/processed/bg_points.parquet       BG population-weighted centroids
+data/<theme>/processed/tract_points.parquet    tract population-weighted centroids
+data/<theme>/processed/counties.parquet        Texas county polygons (cartographic)
+data/<theme>/processed/places.parquet          incorporated places (for map labels)
 
 Usage
 -----
@@ -52,10 +52,10 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RAW = PROJECT_ROOT / "data" / "raw"
-PROC = PROJECT_ROOT / "data" / "processed"
-TABLES = PROJECT_ROOT / "results" / "tables"
+import paths as P
+
+PROJECT_ROOT = P.PROJECT_ROOT
+TABLES = P.TABLES
 
 WGS84 = "EPSG:4326"
 TX_ALBERS = "EPSG:3083"
@@ -108,12 +108,11 @@ def read_cenpop(path: Path, level: str) -> gpd.GeoDataFrame:
 
 
 def main() -> int:
-    PROC.mkdir(parents=True, exist_ok=True)
-    TABLES.mkdir(parents=True, exist_ok=True)
+    P.ensure_tree()
 
     # ------------------------------------------------------------------ blocks
     print("\n[blocks]")
-    blocks = read_zip(RAW / "tl_2024_48_tabblock20.zip")
+    blocks = read_zip(P.POPULATION_RAW / "tl_2024_48_tabblock20.zip")
     print(f"  {len(blocks):,} blocks, columns: {list(blocks.columns)[:12]} ...")
 
     required = {"GEOID20", "POP20", "HOUSING20", "INTPTLAT20", "INTPTLON20", "ALAND20"}
@@ -136,7 +135,7 @@ def main() -> int:
     blocks = blocks.to_crs(TX_ALBERS)
     keep = ["GEOID20", "COUNTYFP", "POP20", "HOUSING20", "ALAND20", "AWATER20", "geometry"]
     blocks[[c for c in keep if c in blocks.columns]].to_parquet(
-        PROC / "blocks.parquet", index=False
+        P.POPULATION_PROC / "blocks.parquet", index=False
     )
 
     block_pts = gpd.GeoDataFrame(
@@ -145,7 +144,7 @@ def main() -> int:
         crs=WGS84,
     ).to_crs(TX_ALBERS)
     block_pts["CENTROID_TYPE"] = "tiger_internal_point"
-    block_pts.to_parquet(PROC / "block_points.parquet", index=False)
+    block_pts.to_parquet(P.POPULATION_PROC / "block_points.parquet", index=False)
 
     pop_total = int(blocks["POP20"].sum())
     n_pop = int((blocks["POP20"] > 0).sum())
@@ -155,14 +154,14 @@ def main() -> int:
 
     # ------------------------------------------------------------- block groups
     print("\n[block groups]")
-    bg = read_zip(RAW / "tl_2024_48_bg.zip").to_crs(TX_ALBERS)
+    bg = read_zip(P.POPULATION_RAW / "tl_2024_48_bg.zip").to_crs(TX_ALBERS)
     bg["COUNTYFP5"] = bg["GEOID"].str[:5]
     bg[["GEOID", "COUNTYFP5", "ALAND", "AWATER", "geometry"]].to_parquet(
-        PROC / "blockgroups.parquet", index=False
+        P.POPULATION_PROC / "blockgroups.parquet", index=False
     )
-    bg_pts = read_cenpop(RAW / "CenPop2020_Mean_BG48.txt", "blkgrp")
+    bg_pts = read_cenpop(P.CENTROIDS_RAW / "CenPop2020_Mean_BG48.txt", "blkgrp")
     bg_pts["COUNTYFP5"] = bg_pts["GEOID"].str[:5]
-    bg_pts.to_parquet(PROC / "bg_points.parquet", index=False)
+    bg_pts.to_parquet(P.CENTROIDS_PROC / "bg_points.parquet", index=False)
     print(f"  {len(bg):,} polygons, {len(bg_pts):,} weighted centroids, "
           f"pop {int(bg_pts['POP20'].sum()):,}")
 
@@ -172,19 +171,19 @@ def main() -> int:
 
     # -------------------------------------------------------------------- tracts
     print("\n[tracts]")
-    tr_pts = read_cenpop(RAW / "CenPop2020_Mean_TR48.txt", "tract")
+    tr_pts = read_cenpop(P.CENTROIDS_RAW / "CenPop2020_Mean_TR48.txt", "tract")
     tr_pts["COUNTYFP5"] = tr_pts["GEOID"].str[:5]
-    tr_pts.to_parquet(PROC / "tract_points.parquet", index=False)
+    tr_pts.to_parquet(P.CENTROIDS_PROC / "tract_points.parquet", index=False)
     print(f"  {len(tr_pts):,} weighted centroids, pop {int(tr_pts['POP20'].sum()):,}")
 
     # ------------------------------------------------------------------ counties
     print("\n[counties]")
-    cty = read_zip(RAW / "cb_2023_us_county_500k.zip")
+    cty = read_zip(P.BOUNDARIES_RAW / "cb_2023_us_county_500k.zip")
     state_col = "STATEFP" if "STATEFP" in cty.columns else "STATEFP20"
     cty = cty[cty[state_col] == TX_FIPS].to_crs(TX_ALBERS)
     cty = cty.rename(columns={"NAME": "COUNTY_NAME", "GEOID": "COUNTYFP5"})
     cty[["COUNTYFP5", "COUNTY_NAME", "ALAND", "AWATER", "geometry"]].to_parquet(
-        PROC / "counties.parquet", index=False
+        P.BOUNDARIES_PROC / "counties.parquet", index=False
     )
     print(f"  {len(cty)} Texas counties")
     if len(cty) != 254:
@@ -192,10 +191,10 @@ def main() -> int:
 
     # -------------------------------------------------------------------- places
     print("\n[places]")
-    pl = read_zip(RAW / "tl_2024_48_place.zip").to_crs(TX_ALBERS)
+    pl = read_zip(P.BOUNDARIES_RAW / "tl_2024_48_place.zip").to_crs(TX_ALBERS)
     pl = pl.rename(columns={"NAME": "PLACE_NAME"})
     pl[["GEOID", "PLACE_NAME", "ALAND", "geometry"]].to_parquet(
-        PROC / "places.parquet", index=False
+        P.BOUNDARIES_PROC / "places.parquet", index=False
     )
     print(f"  {len(pl):,} incorporated places / CDPs")
 

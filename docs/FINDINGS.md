@@ -1,266 +1,280 @@
 # Findings, Observations and Recommendations
 
-Preliminary results from the spatial-access pipeline, plus the data-quality
-issues found along the way. Written for the proposal resubmission.
+Results from the spatial-access pipeline, the data-quality problems found along
+the way, and what they mean for the proposal.
 
-**Read § 1 before quoting any number in this document.**
+**Status:** the facility-list defect described in the previous revision of this
+document has been **fixed**. Section 1 records what it was, how it was corrected,
+and how much it changed the answer — because that correction is itself one of the
+strongest methodological arguments in the proposal.
 
 ---
 
-## 1. ⚠️ The facility list is materially incomplete — fix this first
+## 1. The facility list: what was wrong, and the fix
 
-### What was found
+### The defect
 
-The map produced by the current facility list says Jefferson County, Texas has
-**no obstetric facility**. Jefferson County contains Beaumont, population
-256,526. Adjacent Orange (84,808) and Hardin (56,231) are likewise flagged as
-deserts. The model consequently reports a mean drive time of **61.6 minutes**
-for Jefferson County and **75.6 minutes** for Orange County — the two worst
-values in the entire state, in a metropolitan area of roughly 400,000 people.
-
-That is not a finding about Texas. It is a defect in the input data.
-
-### Independent verification
-
-`scripts/05_validate_facilities.py` cross-checks the facility list against
-hospitals tagged `amenity=hospital` in the same MD5-verified OpenStreetMap
-extract used to build the road network — an independent source that was already
-in hand.
-
-| Check | Result |
-|---|---|
-| Texas counties | 254 |
-| Counties with **0** matched obstetric facilities | 150 |
-| …of which OSM maps **≥ 1 hospital** | **77** |
-| Population living in those 77 counties | **3,284,130** |
-| OSM hospitals statewide | 748 |
-| Matched obstetric facilities | 170 (23%) |
-
-Jefferson County alone has **11 hospitals mapped in OSM** and zero matched
-facilities. Galveston County has 7. Hays has 4. Brazos has 4.
-
-Not every hospital delivers babies, so the matched count *should* be lower than
-748. The signal is not the ratio — it is populous counties with multiple mapped
-hospitals and *zero* matches. Figure `fig5_facility_validation` maps them.
-
-### Root cause
-
-`MCD.ipynb` builds the facility list with a single line:
+`MCD.ipynb` built the facility list with one line:
 
 ```python
 matched_df = df2[df2['NAME'].isin(df1['FAC_NAME'])]
 ```
 
-This is an **exact, case-sensitive string equality** join between the HIFLD
-hospital layer and the Texas HHS CMOS obstetric-services list. It matches only
-where the two agencies typed a facility's name identically, character for
-character. Any divergence drops a real hospital silently:
+An exact, case-sensitive string join between the CMS Provider of Services file
+(which knows *which* hospitals provide obstetrics) and HIFLD (which knows *where*
+hospitals are). Two independent failures resulted:
 
-- `ST.` vs `SAINT` vs `ST`
-- `MEDICAL CENTER` vs `MED CTR` vs `MEDICAL CTR`
-- corporate renaming (`CHRISTUS SOUTHEAST TEXAS ST ELIZABETH` vs `CHRISTUS ST. ELIZABETH`)
-- campus suffixes, `LLC`/`INC`, trailing whitespace, `&` vs `AND`
+1. **It matched only 136 of 211 eligible hospitals (64%).** Any divergence in how
+   two agencies typed a name dropped a real hospital: `ST.` vs `SAINT`,
+   `MED CTR` vs `MEDICAL CENTER`, `BSA HOSPITAL` vs `BAPTIST ST ANTHONYS
+   HOSPITAL`, `PARKLAND HEALTH AND HOSPITAL SYSTEM` vs `PARKLAND MEMORIAL
+   HOSPITAL`.
+2. **It never filtered `PGM_TRMNTN_CD`,** so hospitals that had already closed or
+   merged were counted as open. Of 377 Texas POS records reporting obstetric
+   service, **163 were terminated providers.**
 
-A join like this fails *quietly*. It raises no error and produces a smaller
-table that looks entirely plausible. This one produced 170 rows.
+Both errors push the same direction — they manufacture deserts. The most visible
+symptom: **Jefferson County (Beaumont, pop. 256,526) showed zero obstetric
+facilities and a 61.6-minute mean drive time**, the second-worst in Texas, in a
+metro of ~400,000.
 
-### Why it matters more than an ordinary data-cleaning issue
+### The fix
 
-The error is **not random with respect to the outcome**. Every dropped facility
-converts its own county — and its neighbours — into an artificial desert, and
-inflates measured travel time precisely where the analysis makes its strongest
-claims. A reviewer who spot-checks a single familiar county (Beaumont is an
-obvious candidate) will find the error immediately, and it would discredit the
-result set.
+`scripts/01_prepare_facilities.py` now rebuilds the list from primary sources.
 
-**Every travel statistic in this document is therefore an upper bound. Real
-access is better than these numbers show.**
+**Eligibility**, from the POS record layout (not inferred — see
+`CMOS Dataset Description.pdf`):
 
-### Recommended fix
+| Field | Codes | Rule applied |
+|---|---|---|
+| `OB_SRVC_CD` | 0=not provided, 1=by staff, 2=under arrangement, 3=both | keep 1 and 3 |
+| `PGM_TRMNTN_CD` | 00=active; anything else terminated | keep 00 only |
 
-Restore the three upstream files — `Cleaned_CMOS_Data.csv`,
-`Cleaned_texas_hospitals_HIFLD.csv`, `test_HIFLD.parquet` — none of which are in
-the repository, and rebuild the join as a **multi-stage match**:
+Code 2 means the service exists only "under arrangement" — patients are referred
+elsewhere — so it is not a delivery site. Nine Texas records carry it; they are
+retained and flagged, not counted.
 
-1. **Licence/CMS ID** where both sources carry one — exact, authoritative, and
-   the only join that is actually safe.
-2. **Geospatial**: HIFLD carries coordinates. Match CMOS by geocoded address
-   within ~500 m. Two hospitals rarely share a parcel.
-3. **Normalised name**: uppercase, strip punctuation, expand `ST→SAINT`,
-   `CTR→CENTER`, drop `LLC|INC|LP`, then token-set fuzzy match (`rapidfuzz`)
-   at ≥ 90, blocked within county to keep it tractable.
-4. **Manual review** of every match scoring 80–90 and every CMOS row that
-   remains unmatched. At this scale that is a few hundred rows — an afternoon,
-   and it makes the list defensible.
+**Matching**, progressive passes, strongest evidence first:
 
-Report the match rate at each stage. A reviewer will ask.
-
-### Also recommended
-
-- **Restore `OB_SRVC_CD`.** The notebook computed obstetric level-of-care into
-  `texas_obs_fac_with_ob_srvc.csv`, but the file that survived
-  (`texas_obs_facilities_final.csv`) does not contain it. Level of care is
-  arguably the most valuable variable available — Level I through IV determines
-  whether a facility can handle a high-risk delivery at all. Access to *any*
-  facility and access to a facility that can manage a haemorrhage are different
-  questions, and the second is the more fundable one.
-- **Model closures over time.** Texas rural obstetric-unit closures are the
-  policy story. HIFLD is a snapshot; a time series would let the proposal say
-  something about trend rather than state.
-
----
-
-## 2. Ten facility types in the list do not provide obstetric care
-
-`01_prepare_facilities.py` flags these among the 170 matched rows:
-
-| Type | n |
+| Pass | Matched |
 |---|---|
-| CHILDREN | 3 |
-| LONG TERM CARE | 2 |
-| PSYCHIATRIC | 2 |
-| SPECIAL | 2 |
-| REHABILITATION | 1 |
+| 1. exact normalized name + ZIP | 145 |
+| 2. exact normalized name + city | 9 |
+| 3. street address + ZIP | 39 |
+| 4. street address + city | 2 |
+| 5. fuzzy name (≥88) + ZIP | 11 |
+| 7. fuzzy address + city | 1 |
+| **Total** | **207 of 211 (98.1%)** |
 
-A psychiatric or rehabilitation hospital does not staff a labour-and-delivery
-unit. These are false positives from the name join, and confirm its unreliability
-in the opposite direction — it both drops real facilities and admits wrong ones.
+Address passes are placed *ahead* of loose fuzzy-name passes on purpose: a shared
+street number and street name is far better evidence of identity than a similar
+corporate name. **Hospitals get renamed; they do not move.** This is what recovers
+`BSA HOSPITAL` → `BAPTIST ST ANTHONYS HOSPITAL` (both at 1600 Wallace Blvd,
+Amarillo) and `UNIVERSITY HEALTH SYSTEM` → `UNIVERSITY HOSPITAL` (both at 4502
+Medical Dr, San Antonio).
 
-The analysis set is restricted to `GENERAL ACUTE CARE` + `CRITICAL ACCESS`
-(**160 facilities**). Nothing is deleted; run with `--include-types ALL` for
-sensitivity. Children's hospitals are the debatable exclusion — some operate a
-NICU without a delivery service.
+The remaining 4 — mostly hospitals built after the HIFLD vintage — are located at
+their ZIP Code Tabulation Area centroid and flagged `GEOCODE = zip_centroid`.
+That costs a kilometre or two of precision; dropping them would cost an entire
+false desert.
+
+### How much it changed the answer
+
+| Measure | Exact-name join | Rebuilt list | Change |
+|---|---|---|---|
+| Facilities identified | 170 | **211** | +41 |
+| Counties covered | 101 | **103** | +2 |
+| Texans > 30 min from care | 2,581,427 | **1,059,501** | **−59%** |
+| Texans > 60 min from care | 386,386 | **41,940** | −89% |
+| Population-weighted mean drive | 12.9 min | **9.5 min** | −26% |
+| Jefferson County mean drive | 61.6 min | **18.7 min** | −70% |
+
+**A published desert map built on an uncorrected join is wrong by roughly a factor
+of two.** Worst-county rankings flip entirely: the previous list put Orange,
+Hardin and Jefferson (all Southeast Texas metro) in the worst ten; the corrected
+list puts Crockett, Culberson, Terrell, Reagan and Edwards there — all genuinely
+remote West Texas. That change of face validity is itself the check that the fix
+worked.
+
+### Still outstanding
+
+The 4 ZIP-centroid facilities should be geocoded properly before publication, and
+every match scoring 88–95 (12 records) deserves a manual glance. Both are listed
+in `results/tables/facility_match_report.csv` and `facility_unmatched.csv`.
 
 ---
 
-## 3. Preliminary access results
+## 2. Preliminary access results
 
-Computed over all 668,757 blocks and 160 facilities. **Subject to § 1.**
+All 668,757 blocks against 211 facilities, population-weighted over 28,908,656
+people.
 
-### Statewide, population-weighted (28,908,656 people)
-
-| Metric | Mean | Median | p75 | p90 | p95 | p99 | Max |
+| Metric | Mean | p50 | p75 | p90 | p95 | p99 | Max |
 |---|---|---|---|---|---|---|---|
-| Drive time (min) | 12.9 | 8.7 | 15.1 | 28.4 | 39.4 | 63.7 | 173.4 |
-| Road distance (km) | 18.5 | 11.2 | 21.0 | 43.6 | 63.2 | 106.8 | 221.2 |
+| Drive time (min) | 9.5 | 7.1 | 11.1 | 19.5 | 26.9 | 41.5 | 173.4 |
+| Road distance (km) | 13.0 | 8.8 | 14.8 | 28.2 | 40.7 | 65.4 | 221.2 |
 
-### Population by drive-time band
+**Population by drive-time band**
 
 | Band (min) | Population | Share |
 |---|---|---|
-| < 15 | 21,634,234 | 74.8% |
-| 15 – 30 | 4,692,995 | 16.2% |
-| 30 – 45 | 1,517,606 | 5.3% |
-| 45 – 60 | 677,435 | 2.3% |
-| 60 – 90 | 385,467 | 1.3% |
-| 90 + | 919 | 0.0% |
+| < 15 | 24,412,775 | 84.5% |
+| 15 – 30 | 3,436,380 | 11.9% |
+| 30 – 45 | 871,709 | 3.0% |
+| 45 – 60 | 145,852 | 0.5% |
+| 60 – 90 | 40,858 | 0.14% |
+| 90 + | 1,082 | 0.004% |
 
-**Headline numbers:**
+**Level of care matters more than proximity.** Access to *any* obstetric facility
+is decent; access to one with a NICU is three times worse:
 
-- **2,581,427 Texans (8.9%)** live more than 30 minutes from the nearest
-  obstetric facility.
-- **386,386 (1.3%)** live more than 60 minutes away.
-- **861,715** are more than 80 km away by road.
-- 153 of 254 counties have no facility in the analysis set; **4,588,974 people**
-  live in them.
+| | > 30 min | > 60 min |
+|---|---|---|
+| Any obstetric facility (n=211) | 1,059,501 (3.7%) | 41,940 (0.15%) |
+| **NICU-capable facility (n=117)** | **3,204,055 (11.1%)** | **670,331 (2.3%)** |
 
-### Structural concentration
+This is the finding to lead with. Proximity to a door is not proximity to care,
+and the gap is exactly where preventable maternal and neonatal deaths occur.
 
-160 facilities serve 254 counties. The five most-served counties hold **38 of
-160 facilities (24%)**. Access is not merely uneven — it is concentrated in
-metropolitan cores while the rural tail extends past 170 minutes.
-
-### Road detour ratio
-
-Population-weighted mean **1.33** — road distance runs a third longer than
-straight-line. This is the quantitative argument for having built the network at
-all: a Euclidean-buffer analysis (still common in this literature) would
-understate real travel by roughly 33% on average, and considerably more in West
-Texas where the road grid is sparse.
-
-**Use this in the proposal.** It is a concrete methodological advance over the
-buffer-based approach reviewers will have seen before.
+**Ten worst counties by mean drive time** — all genuinely remote, all without a
+facility: Crockett (79.8 min), Culberson (68.7), Terrell (64.7), Reagan (64.0),
+Edwards (63.9), Sutton (63.0), Presidio (61.9), Wheeler (60.0), Menard (58.3),
+Dickens (58.2).
 
 ---
 
-## 4. Reproducibility problems found in the existing notebooks
+## 3. The finding the county-level literature cannot see
 
-| Issue | Detail |
+Cross-checking against hospitals mapped in OpenStreetMap (an independent source,
+already in hand for the road network):
+
+- **78 counties have at least one hospital but no obstetric unit.**
+- **1,730,926 people live in them.**
+
+These counties are not places that need a new hospital. They need an obstetric
+unit **restored inside a hospital that already exists** — a dramatically cheaper
+intervention. A binary county-level desert map cannot distinguish them from
+counties that never had a hospital at all, so it cannot support this
+recommendation. Our block-level measurement can.
+
+This is the strongest policy hook in the analysis and belongs in the proposal's
+opening.
+
+---
+
+## 4. Road networks vs straight lines
+
+Population-weighted mean detour ratio: **1.33×**. Road travel is a third longer
+than straight-line distance, and worse in the sparse western road grid.
+
+Buffer- and centroid-based studies — still common in this literature — therefore
+understate real travel by ~33% on average. This is a concrete, quantified
+methodological advance over the approach reviewers will have seen before, and it
+cost nothing extra to produce once the network was built.
+
+---
+
+## 5. Siting optimization (preliminary)
+
+`scripts/07_optimize_siting.py` solves the Maximal Covering Location Problem
+greedily on the real network. Candidate sites are restricted to existing
+incorporated places — a hospital needs staff, utilities and road access, so an
+optimum in empty rangeland is not actionable.
+
+**Ten new facilities would bring 399,723 of the 1,059,501 underserved Texans
+(37.7%) within 30 minutes:**
+
+| # | Site | County | Newly covered | Cumulative |
+|---|---|---|---|---|
+| 1 | Bastrop | Bastrop | 58,421 | 5.5% |
+| 2 | Wharton | Wharton | 51,252 | 10.4% |
+| 3 | Fruitvale | Van Zandt | 49,213 | 15.0% |
+| 4 | Jasper | Jasper | 41,289 | 18.9% |
+| 5 | Teague | Freestone | 37,665 | 22.4% |
+| 6 | Floresville | Wilson | 37,416 | 26.0% |
+| 7 | Hardin | Liberty | 35,925 | 29.4% |
+| 8 | Sunset | Montague | 30,426 | 32.2% |
+| 9 | Tenaha | Shelby | 29,757 | 35.1% |
+| 10 | Rockdale | Milam | 28,359 | 37.7% |
+
+Because coverage is a monotone submodular function, greedy carries a provable
+(1 − 1/e) ≈ 63% approximation guarantee — a bounded result, not a heuristic
+guess. Runtime: ~30 seconds including 697 bounded Dijkstra searches.
+
+---
+
+## 6. Notebook reproducibility problems (all addressed)
+
+| Issue | Status |
 |---|---|
-| **Lost plotting code** | `mat_car_des_plot.ipynb` references `tx_counties`, `gdf_fac` and `HasFacility`, none of which are defined anywhere in the notebook. The cells that built them were deleted. The published map was **not reproducible.** Rebuilt in `06_make_figures.py`. |
-| **Broken data paths** | Both notebooks read bare filenames (`pd.read_csv("texas_obs_facilities_final.csv")`) while the file lives in `data/`. |
-| **Out-of-order cells** | `mat_car_des_plot.ipynb` cell 1 calls `len(df)` before cell 2 defines `df`. Execution counts (`In[8]`, `In[4]`, `In[20]`) show the notebook was run out of order and never re-run clean. |
-| **Missing inputs** | Four intermediate files referenced by `MCD.ipynb` are absent (see `DATA_SOURCES.md` § 3). |
-| **Silent duplicates** | 7 rows share a facility name across distinct HIFLD IDs. |
-| **Sentinel values** | HIFLD encodes unknowns as `-999` and `"NOT AVAILABLE"`. Averaging `BEDS` without handling these silently corrupts the statistic. Now converted to nulls. |
-| **Corrupt geometry column** | The `geometry` column in the CSV is a stringified Python `bytes` repr of WKB and cannot be parsed back. Geometry is rebuilt from lat/lon. |
+| `mat_car_des_plot.ipynb` referenced `tx_counties`, `gdf_fac`, `HasFacility` — never defined; the published map was not reproducible | rebuilt in `06_make_figures.py` |
+| Both notebooks read bare filenames while data lived elsewhere | fixed; all paths via `scripts/paths.py` |
+| Cells run out of order (`len(df)` before `df` exists) | pipeline is scripted and linear |
+| HIFLD `-999` / `"NOT AVAILABLE"` sentinels averaged into statistics | converted to nulls |
+| `geometry` column was a stringified `bytes` repr, unparseable | geometry rebuilt from lat/lon |
+| Four intermediate files missing | supplied; provenance now documented |
 
-The `scripts/` pipeline is numbered, idempotent and runs end to end from raw
-downloads. Recommend treating notebooks as exploration and the scripts as the
-record of results.
+Treat notebooks as exploration and `scripts/` as the record of results.
 
 ---
 
-## 5. Suggestions for the resubmission
+## 7. Recommendations for the resubmission
 
-**Methodological strengths worth foregrounding:**
+**Lead with these, in this order:**
 
-1. **Every block, exactly — no sampling.** 668,757 blocks against 160 facilities
-   is 107 M origin–destination pairs if computed naively. Multi-source Dijkstra
-   on the transposed graph solves it in **~3 seconds per pass** with no routing
-   server, no API quota and no sampling. That is a genuine methodological
-   contribution and it is cheap to state.
-2. **Direction-correct routing.** Costs are computed node→facility on the
-   transposed directed graph, so one-way networks are handled properly. Most
-   comparable studies quietly assume symmetry.
-3. **Population-weighted throughout**, with official Census weighted centroids
-   at every level where the Bureau publishes them.
-4. **Full provenance.** Every input is pinned, hashed and timestamped; the OSM
-   extract is MD5-verified against the publisher's own checksum.
+1. **78 counties have a hospital but no obstetric unit** (§3). Cheapest
+   intervention, invisible to every published desert map, uniquely visible to us.
+2. **The NICU gap** (§2). 11.1% vs 3.7% — level of care, not proximity.
+3. **10 sites, 399,723 people** (§5). A concrete, already-computed deliverable.
+4. **The correction** (§1). Shows methodological rigor and implicitly critiques
+   the existing literature without naming anyone.
 
-**Gaps to close before submitting:**
+**Still to close before submitting:**
 
-1. **Fix the facility list** (§ 1). Nothing else matters as much.
-2. **Get a Census API key** — free, instant, from
-   <https://api.census.gov/data/key_signup.html>. This unlocks women aged 15–44
-   (ACS table `B01001`) as the denominator. "X% of *women of reproductive age*
-   live more than 30 minutes from obstetric care" is a far stronger sentence
-   than one about total population, and reviewers will expect it.
-3. **Validate travel times against a routing engine.** Take a stratified sample
-   of ~500 origin–destination pairs, route them through Google Distance Matrix
-   or OpenRouteService, and report the correlation. This converts the free-flow
-   speed assumption from a limitation into a *measured* calibration — one table,
-   large credibility gain.
-4. **Add level of care** (`OB_SRVC_CD`) and report access separately by level.
-5. **Consider a 2SFCA measure.** Two-step floating catchment area accounts for
-   facility *capacity* against surrounding demand, not just proximity. Bed counts
-   are already in the data. This is the standard next step reviewers ask for, and
-   distinguishes a proximity study from an access study.
-6. **Model cross-border access.** Texas-border residents may use out-of-state
-   facilities; the Texas-only extract overestimates their travel time.
-7. **Overlay social vulnerability.** Intersecting drive time with CDC/ATSDR SVI
-   or rural-urban commuting codes turns a geography result into a health-equity
-   result — usually what such proposals are actually funded for.
+1. **Get a Census API key** (free, instant, <https://api.census.gov/data/key_signup.html>).
+   Unlocks women aged 15–44 (ACS `B01001_030E`–`B01001_039E`) as the denominator.
+   "X% of *women of reproductive age*" is far stronger than total population, and
+   reviewers will expect it. This is the single biggest remaining gap.
+2. **Validate travel times** against a commercial routing engine on ~500 sampled
+   routes. Converts the free-flow speed assumption from a limitation into a
+   measured calibration. One table, large credibility gain.
+3. **Add 2SFCA** for capacity. Bed counts are already in the data. This is the
+   standard next question and distinguishes a proximity study from an access study.
+4. **Date the closures.** CMS POS archives would let the panel run backward and
+   turn a snapshot into a trend — the actual policy story in rural Texas.
+5. **Model cross-border access.** The Texas-only extract overestimates travel for
+   border counties whose nearest facility is in another state.
+
+**On reinforcement learning — a caution.** For a *static* facility-location
+problem, ILP is superior to RL and an OR-literate reviewer will say so. Do not
+claim RL beats ILP on the static problem. The defensible framing, used in the
+revised proposal: ILP is the shipped default; RL is evaluated for the
+**sequential, budget-phased, uncertainty-aware** version, where facilities are
+funded over years and demand shifts. That is a setting where RL genuinely earns
+its place, and offering to report the comparison honestly — including a negative
+result — reads as confidence rather than hedging.
 
 ---
 
-## 6. Figures
+## 8. Figures
 
-All in `results/figures/`, each as 300 dpi PNG and 600 dpi PDF.
+`results/figures/`, each as 300 dpi PNG and 600 dpi PDF.
+
+**Proposal figures**
 
 | Figure | Content |
 |---|---|
-| `fig1_maternity_care_deserts` | Counties with no obstetric facility; facilities, county names, city labels, full legend — the original to-do list, rebuilt reproducibly |
-| `fig2_drive_time` | Block-group choropleth, drive time to nearest facility |
-| `fig3_drive_distance` | Block-group choropleth, road distance |
-| `fig4_population_by_drivetime` | Population by drive-time band |
-| `fig5_facility_validation` | Counties flagged as deserts that have OSM-mapped hospitals |
+| `proposal_fig1_access_landscape` | 4 panels: drive time, NICU drive time, population by band, hospital-but-no-obstetrics counties |
+| `proposal_fig2_siting_optimizer` | 10 recommended sites over unmet demand + coverage curve |
+| `proposal_fig3_method_validation` | Detour ratio distribution + what the facility correction changed |
 
-**A caution when reading fig2 and fig3.** They are shaded by *area*, and rural
-block groups are enormous while urban ones are tiny. The maps look far more
-red/dark than the population statistics because most Texans live inside the
-small light polygons. Always pair the map with the § 3 population table; a
-reviewer who reads only the map will overestimate the share of people affected.
+**Standard figures**: `fig1_maternity_care_deserts`, `fig2_drive_time`,
+`fig3_drive_distance`, `fig4_population_by_drivetime`, `fig5_facility_validation`.
 
-**Attribution requirement.** Figures 2 and 3 are derived from OpenStreetMap and
-must carry **"© OpenStreetMap contributors (ODbL)"** wherever published.
+**A caution when reading the choropleths.** They are shaded by *area*, and rural
+block groups are enormous while urban ones are tiny. The maps look far darker
+than the population statistics because most Texans live inside the small light
+polygons. Always pair a map with the §2 population table.
+
+**Attribution.** Figures derived from the road network must carry
+**"© OpenStreetMap contributors (ODbL)"** wherever published.

@@ -4,10 +4,10 @@
 ========================
 Build a routable, directed drive network for Texas from the raw OSM extract.
 
-Input : data/raw/texas-latest.osm.pbf   (Geofabrik, MD5-verified in step 00)
-Output: data/processed/network_nodes.parquet   node id -> lon/lat
-        data/processed/network_edges.parquet   u, v, length_m, time_s, highway
-        data/processed/network_meta.json       build parameters + counts
+Input : data/street_network/raw/texas-latest.osm.pbf   (Geofabrik, MD5-verified in step 00)
+Output: data/street_network/processed/network_nodes.parquet   node id -> lon/lat
+        data/street_network/processed/network_edges.parquet   u, v, length_m, time_s, highway
+        data/street_network/processed/network_meta.json       build parameters + counts
 
 Method
 ------
@@ -52,9 +52,11 @@ import osmium
 import pandas as pd
 from pyproj import Geod
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PBF = PROJECT_ROOT / "data" / "raw" / "texas-latest.osm.pbf"
-PROC = PROJECT_ROOT / "data" / "processed"
+import paths as P
+
+PROJECT_ROOT = P.PROJECT_ROOT
+PBF = P.NETWORK_RAW / "texas-latest.osm.pbf"
+PROC = P.NETWORK_PROC
 
 # --------------------------------------------------------------------------
 # Network definition

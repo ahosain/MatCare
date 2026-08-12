@@ -61,9 +61,10 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components, dijkstra
 from scipy.spatial import cKDTree
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PROC = PROJECT_ROOT / "data" / "processed"
-TABLES = PROJECT_ROOT / "results" / "tables"
+import paths as P
+
+PROJECT_ROOT = P.PROJECT_ROOT
+TABLES = P.TABLES
 
 TX_ALBERS = "EPSG:3083"
 WGS84 = "EPSG:4326"
@@ -104,8 +105,8 @@ def main() -> int:
 
     # ------------------------------------------------------------------ load
     log("Loading network ...")
-    nodes = pd.read_parquet(PROC / "network_nodes.parquet")
-    edges = pd.read_parquet(PROC / "network_edges.parquet", columns=["u", "v", "length_m", "time_s"])
+    nodes = pd.read_parquet(P.NETWORK_PROC / "network_nodes.parquet")
+    edges = pd.read_parquet(P.NETWORK_PROC / "network_edges.parquet", columns=["u", "v", "length_m", "time_s"])
     n_nodes = len(nodes)
     log(f"  {n_nodes:,} nodes / {len(edges):,} directed edges")
 
@@ -119,7 +120,7 @@ def main() -> int:
     tree = cKDTree(node_xy)
 
     # ------------------------------------------------------------ facilities
-    fac = gpd.read_parquet(PROC / args.facilities).to_crs(TX_ALBERS)
+    fac = gpd.read_parquet(P.FACILITIES_PROC / args.facilities).to_crs(TX_ALBERS)
     fac_xy = np.column_stack([fac.geometry.x.to_numpy(), fac.geometry.y.to_numpy()])
     fac_snap_m, fac_node = tree.query(fac_xy, k=1)
     log(f"  {len(fac)} facilities snapped to network "
@@ -128,7 +129,7 @@ def main() -> int:
     far = fac_snap_m > 2000
     if far.any():
         log(f"  [warn] {int(far.sum())} facility(ies) >2 km from any drivable road:")
-        for nm, d in zip(fac.loc[far, "NAME"], fac_snap_m[far]):
+        for nm, d in zip(fac.loc[far, "FAC_NAME"], fac_snap_m[far]):
             log(f"         {nm}  {d / 1000:.1f} km")
 
     src_nodes = np.unique(fac_node).astype(np.int32)
@@ -181,7 +182,7 @@ def main() -> int:
 
     # --------------------------------------------------------------- blocks
     log("Loading block centroids and snapping ...")
-    blocks = gpd.read_parquet(PROC / "block_points.parquet").to_crs(TX_ALBERS)
+    blocks = gpd.read_parquet(P.POPULATION_PROC / "block_points.parquet").to_crs(TX_ALBERS)
     b_xy = np.column_stack([blocks.geometry.x.to_numpy(), blocks.geometry.y.to_numpy()])
     snap_m, b_node = tree.query(b_xy, k=1)
     log(f"  {len(blocks):,} blocks snapped "
@@ -213,7 +214,7 @@ def main() -> int:
     )
     out["detour_ratio"] = (out["net_km"] / out["straight_km"].replace(0, np.nan)).astype(np.float32)
 
-    name_by_i = fac["NAME"].reset_index(drop=True)
+    name_by_i = fac["FAC_NAME"].reset_index(drop=True)
     out["nearest_fac_name"] = (
         pd.Series(fac_i).map(name_by_i).where(pd.Series(fac_i) >= 0).to_numpy()
     )
@@ -223,8 +224,8 @@ def main() -> int:
         log(f"  [warn] {int(unreach.sum()):,} blocks unreachable "
             f"({int(out.loc[unreach, 'POP20'].sum()):,} people) - islands in the OSM graph")
 
-    out.to_parquet(PROC / "block_access.parquet", index=False)
-    log(f"Wrote {PROC / 'block_access.parquet'}")
+    out.to_parquet(P.FACILITIES_PROC / "block_access.parquet", index=False)
+    log(f"Wrote {P.FACILITIES_PROC / 'block_access.parquet'}")
 
     # ------------------------------------------------------------- summaries
     pop = out["POP20"].to_numpy()
@@ -291,7 +292,7 @@ def main() -> int:
     cty["mean_dist_km"] = cty["pw_dist_km"] / cty["population"].replace(0, np.nan)
     cty = cty.drop(columns=["pw_time_min", "pw_dist_km"])
 
-    counties = gpd.read_parquet(PROC / "counties.parquet")
+    counties = gpd.read_parquet(P.BOUNDARIES_PROC / "counties.parquet")
     cty = cty.join(counties.set_index("COUNTYFP5")["COUNTY_NAME"])
     fac_counties = set(fac["COUNTYFIPS"].astype(str))
     cty["has_facility"] = cty.index.isin(fac_counties)
@@ -336,7 +337,7 @@ def main() -> int:
         "snap_speed_mph": SNAP_SPEED_MPH,
         "median_block_snap_m": float(np.median(snap_m)),
     }
-    (PROC / "access_meta.json").write_text(json.dumps(meta, indent=2) + "\n")
+    (P.FACILITIES_PROC / "access_meta.json").write_text(json.dumps(meta, indent=2) + "\n")
     return 0
 
 

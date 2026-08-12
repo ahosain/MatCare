@@ -17,7 +17,47 @@ analysis, and should be described as one.
 
 ---
 
-## 2. Units of analysis and their centroids
+## 2. Defining "an obstetric facility"
+
+Two sources are required and neither alone suffices. The **CMS Provider of
+Services (POS)** file records which hospitals provide obstetrics but carries no
+coordinates; **HIFLD** records hospital coordinates but not obstetric service.
+
+**Eligibility**, applied from the POS record layout:
+
+* `OB_SRVC_CD in {1, 3}` - obstetrics provided *by staff* (on site). Code 2,
+  "under arrangement" only, means patients are referred elsewhere, so it is not a
+  delivery site; those 9 Texas records are flagged, not counted.
+* `PGM_TRMNTN_CD == 0` - active provider. 163 of 377 Texas POS records reporting
+  obstetric service are terminated providers.
+
+That yields **211 eligible Texas hospitals**, of which **117 also report a NICU**
+on site (`NEONTL_ICU_SRVC_CD in {1, 3}`), the proxy used for level of care.
+
+**Matching** proceeds in progressive passes, each blocked geographically so the
+candidate set stays small and a wrong match across the state is impossible:
+
+| Pass | Evidence | Matched |
+|---|---|---|
+| 1-2 | exact normalised name + ZIP / city | 154 |
+| 3-4 | street number + street name + ZIP / city | 41 |
+| 5 | fuzzy name (token-set >= 88) + ZIP | 11 |
+| 7 | fuzzy street name, same house number + city | 1 |
+| | **total** | **207 / 211 (98.1%)** |
+
+Address passes run *before* loose fuzzy-name passes deliberately: a shared street
+number and street name is stronger evidence of identity than a similar corporate
+name, because hospitals get renamed but do not move.
+
+Each POS record is claimed once, by the first pass that matches it, and each
+HIFLD record can be claimed only once - so a multi-campus system cannot collapse
+onto a single point. Every match carries the pass and score that produced it.
+
+The 4 residual hospitals (built after the HIFLD vintage) are placed at their ZCTA
+centroid and flagged `GEOCODE = zip_centroid`. Locating them approximately costs
+1-2 km of precision; omitting them would fabricate an entire desert.
+
+## 3. Units of analysis and their centroids
 
 | Unit | n | Centroid used | Why |
 |---|---|---|---|
@@ -34,7 +74,7 @@ block-group level (verified — see `DATA_SOURCES.md`).
 Blocks are the Bureau's finest tabulation geography. In populated areas a block
 is typically a single city block, so the distance between its internal point and
 its true population centroid is on the order of 100 m — negligible against drive
-distances whose population-weighted median is 11.2 km. The coarse units, where
+distances whose population-weighted median is 8.8 km. The coarse units, where
 the bias *would* bite, use the official weighted centers. The analysis therefore
 never relies on an areal centroid of a large polygon.
 
@@ -42,7 +82,7 @@ Results are computed at block level and aggregated upward, population-weighted.
 
 ---
 
-## 3. Road network
+## 4. Road network
 
 Built by `scripts/03_build_road_network.py` from the MD5-verified Geofabrik
 Texas extract.
@@ -95,7 +135,7 @@ the remaining ~80%, a free-flow default is applied by road class:
 
 These are **assumptions chosen to reflect typical Texas posted limits**, not
 measurements, and not values taken from any cited source. They are recorded in
-`data/processed/network_meta.json` so any run can be audited or re-parameterised.
+`data/street_network/processed/network_meta.json` so any run can be audited or re-parameterised.
 
 Consequences, stated plainly:
 
@@ -109,14 +149,14 @@ Consequences, stated plainly:
 
 ---
 
-## 4. The routing algorithm
+## 5. The routing algorithm
 
-The naive framing — every block to every facility — is 668,757 × 160 ≈ **107
+The naive framing — every block to every facility — is 668,757 × 211 ≈ **141
 million** shortest paths. That framing is unnecessary: only the *nearest*
 facility matters.
 
 `scripts/04_compute_access.py` instead runs a **multi-source Dijkstra**. Seeding
-the priority queue with all 160 facility nodes simultaneously and relaxing
+the priority queue with all 211 facility nodes simultaneously and relaxing
 outward labels every node in the network with its cost to the closest facility
 and the identity of that facility, in a single pass. SciPy exposes this as
 `dijkstra(..., min_only=True)`.
@@ -155,7 +195,7 @@ containing one must exclude them before averaging or the mean becomes infinite.
 
 ---
 
-## 5. Projection
+## 6. Projection
 
 **EPSG:3083** (NAD83 / Texas Centric Albers Equal Area) throughout — equal-area
 with metre units, the appropriate choice for statewide area and distance work in
@@ -165,7 +205,7 @@ Edge lengths are the one exception: geodesic, as above.
 
 ---
 
-## 6. Statistics
+## 7. Statistics
 
 All summary figures are **population-weighted**. An unweighted mean across
 668,757 blocks would let empty rural blocks dominate a statistic about people.
@@ -176,15 +216,14 @@ which ignores weights.
 
 ---
 
-## 7. Known limitations
+## 8. Known limitations
 
-1. **The facility list is incomplete.** Validation identifies 77 counties
-   holding 3.28 M people flagged as deserts despite having hospitals mapped in
-   OSM. Every reported travel statistic is therefore an **upper bound**; true
-   access is better than these numbers show. See `FINDINGS.md` § 1. This
-   dominates every other limitation listed here.
+1. **Facility-list vintage.** The list is rebuilt correctly (98.1% matched) but
+   HIFLD's vintage predates 4 hospitals in the CMS file, and CMS service flags
+   can lag a real closure. Both are documented; neither is now the dominant
+   source of error, as it was in the previous revision.
 2. Free-flow speeds; no congestion (§ 3).
-3. Total population is the denominator, not women of reproductive age — pending
+2. Total population is the denominator, not women of reproductive age — pending
    a Census API key.
 4. Facility *capacity* and level of care are not modelled. The `OB_SRVC_CD`
    field needed for this was dropped upstream.
@@ -196,17 +235,46 @@ which ignores weights.
 
 ---
 
-## 8. Reproducing
+## 9. Siting optimisation
+
+`07_optimize_siting.py` solves the **Maximal Covering Location Problem**: pick K
+new sites maximising the underserved population brought within a coverage
+standard (default 30 min).
+
+* **Demand** - every populated block beyond the standard (1,059,501 people).
+* **Candidates** - TIGER incorporated places that are themselves underserved
+  (697 of 1,863). Restricting to existing settlements keeps recommendations
+  actionable; an optimum in empty rangeland is not an answer a planner can use.
+* **Coverage** - one Dijkstra per candidate, bounded at the standard. The bound
+  prunes hard, so 697 candidate evaluations take ~10 s in total.
+* **Selection** - greedy: repeatedly take the candidate covering the most
+  still-uncovered population.
+
+Greedy is not merely a heuristic here. Coverage is a monotone submodular set
+function, so greedy carries the standard (1 - 1/e) ~ 63% approximation guarantee
+(Nemhauser, Wolsey & Fisher, 1978). The reported result is therefore bounded
+relative to the unknown optimum.
+
+**Limitations.** Facility capacity is not modelled (a 2SFCA extension would);
+all candidate sites are treated as equally costly, which understates the appeal
+of restoring obstetrics inside the 78 counties that already have a hospital; and
+the coverage standard is a planning benchmark, not a Texas legal requirement -
+the state defines maternal care by capability level, not mileage.
+
+## 10. Reproducing
 
 ```bash
 conda activate matcare
 python scripts/00_download_data.py       # ~1.25 GB
-python scripts/01_prepare_facilities.py
+python scripts/01_prepare_facilities.py  # multi-stage CMS POS <-> HIFLD match
 python scripts/02_prepare_census.py      # ~50 s
 python scripts/03_build_road_network.py  # ~2.5 min, peak RSS ~2.2 GB
 python scripts/04_compute_access.py      # ~30 s
 python scripts/05_validate_facilities.py
 python scripts/06_make_figures.py
+python scripts/07_optimize_siting.py     # ~30 s  greedy MCLP
+python scripts/08_proposal_figures.py
+python scripts/09_build_proposal_docx.py
 ```
 
 Runs on 8 cores / 16 GB RAM. No Docker, no routing server, no API keys.

@@ -1,0 +1,11 @@
+rank,place,place_geoid,pop_newly_covered,cum_pop_covered,pct_of_underserved,COUNTY_NAME
+1,Bastrop,4805864,58421,58421,5.51,Bastrop
+2,Wharton,4878136,51252,109673,10.35,Wharton
+3,Fruitvale,4827804,49213,158886,15.0,Van Zandt
+4,Jasper,4837420,41289,200175,18.89,Jasper
+5,Teague,4872020,37665,237840,22.45,Freestone
+6,Floresville,4826160,37416,275256,25.98,Wilson
+7,Hardin,4832240,35925,311181,29.37,Liberty
+8,Sunset,4871264,30426,341607,32.24,Montague
+9,Tenaha,4872188,29757,371364,35.05,Shelby
+10,Rockdale,4862672,28359,399723,37.73,Milam
