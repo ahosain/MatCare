@@ -137,6 +137,31 @@ SOURCES: dict[str, dict] = {
             "for hospitals that cannot be matched to a HIFLD coordinate."
         ),
     },
+    # ------------------------------------------------- ACS demographics
+    "acs_b01001": {
+        "theme": "population",
+        "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2023/table-based-SF/data/5YRData/acsdt5y2023-b01001.dat",
+        "filename": "acsdt5y2023-b01001.dat",
+        "expected_bytes": 200_088_223,
+        "description": (
+            "ACS 2019-2023 5-year, table B01001 'Sex by Age', table-based "
+            "Summary File, all geographies nationally. Supplies women aged "
+            "15-44 at block group level - the correct denominator for "
+            "obstetric access. NOTE: this bulk file needs NO API key, unlike "
+            "api.census.gov which now rejects unauthenticated requests."
+        ),
+    },
+    "acs_shells": {
+        "theme": "population",
+        "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2023/table-based-SF/documentation/ACS20235YR_Table_Shells.txt",
+        "filename": "ACS20235YR_Table_Shells.txt",
+        "expected_bytes": 5_596_450,
+        "description": (
+            "Official ACS table shells: maps every B01001_Ennn column to its "
+            "sex/age label. Used to derive the women 15-44 column list from "
+            "the published definitions rather than from memory."
+        ),
+    },
     # ------------------------------------------------------------------- osm
     "osm": {
         "theme": "street_network",

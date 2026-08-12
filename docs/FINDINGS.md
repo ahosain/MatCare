@@ -143,6 +143,44 @@ Dickens (58.2).
 
 ---
 
+## 2b. Access for women aged 15–44 — the correct denominator
+
+ACS 2019–2023 table B01001 gives **6,180,678** women aged 15–44 in Texas (20.9%
+of the population). Weighting by them rather than by everyone is what a
+maternal-health reviewer will expect.
+
+| Benchmark | Women 15–44 within it |
+|---|---|
+| 25 miles of an obstetric facility | 95.9% |
+| 35 miles | 98.6% |
+| 50 miles | 99.7% |
+| 30 minutes | 97.0% |
+| 60 minutes | 99.9% |
+| **30 minutes of a NICU-capable facility** | **90.6%** |
+| 60 minutes of a NICU-capable facility | 98.2% |
+
+- **185,251 women (3.0%)** are beyond 30 minutes of any obstetric facility.
+- **576,262 women (9.4%)** are beyond 30 minutes of a NICU-capable facility —
+  **3.1× as many.**
+
+Worst counties for women 15–44: Crockett (79.1 min), Culberson (69.4), King
+(68.1), Terrell (66.5), Edwards (66.4), Presidio (66.0), Sutton (64.1),
+Reagan (64.0).
+
+**No API key was needed.** `api.census.gov` now rejects unauthenticated requests,
+so the pipeline reads the bulk table-based ACS Summary File instead — identical
+data, no registration. The nine female age bands (`B01001_030`…`_038`) are
+derived at runtime by parsing the official Census table shells rather than being
+hard-coded, so a mis-remembered variable number cannot silently corrupt the
+denominator.
+
+**Caveat.** ACS publishes block groups, not blocks. Block-level weights are
+obtained by sharing each block group's count across its blocks in proportion to
+2020 decennial population, which assumes a uniform age–sex mix within a block
+group.
+
+---
+
 ## 3. The finding the county-level literature cannot see
 
 Cross-checking against hospitals mapped in OpenStreetMap (an independent source,
@@ -181,21 +219,23 @@ greedily on the real network. Candidate sites are restricted to existing
 incorporated places — a hospital needs staff, utilities and road access, so an
 optimum in empty rangeland is not actionable.
 
-**Ten new facilities would bring 399,723 of the 1,059,501 underserved Texans
-(37.7%) within 30 minutes:**
+Demand is weighted by **women aged 15–44** (`--weight pop` for total population).
+
+**Ten new facilities would bring 72,737 of the 178,685 underserved women aged
+15–44 (40.7%) within 30 minutes:**
 
 | # | Site | County | Newly covered | Cumulative |
 |---|---|---|---|---|
-| 1 | Bastrop | Bastrop | 58,421 | 5.5% |
-| 2 | Wharton | Wharton | 51,252 | 10.4% |
-| 3 | Fruitvale | Van Zandt | 49,213 | 15.0% |
-| 4 | Jasper | Jasper | 41,289 | 18.9% |
-| 5 | Teague | Freestone | 37,665 | 22.4% |
-| 6 | Floresville | Wilson | 37,416 | 26.0% |
-| 7 | Hardin | Liberty | 35,925 | 29.4% |
-| 8 | Sunset | Montague | 30,426 | 32.2% |
-| 9 | Tenaha | Shelby | 29,757 | 35.1% |
-| 10 | Rockdale | Milam | 28,359 | 37.7% |
+| 1 | Wharton | Wharton | 10,280 | 5.8% |
+| 2 | Bastrop | Bastrop | 10,132 | 11.4% |
+| 3 | Wills Point | Van Zandt | 9,192 | 16.6% |
+| 4 | Hardin | Liberty | 8,917 | 21.6% |
+| 5 | Floresville | Wilson | 6,669 | 25.3% |
+| 6 | Jasper | Jasper | 6,348 | 28.8% |
+| 7 | Teague | Freestone | 6,313 | 32.4% |
+| 8 | Sunset | Montague | 5,237 | 35.3% |
+| 9 | Tenaha | Shelby | 4,989 | 38.1% |
+| 10 | Rockdale | Milam | 4,656 | 40.7% |
 
 Because coverage is a monotone submodular function, greedy carries a provable
 (1 − 1/e) ≈ 63% approximation guarantee — a bounded result, not a heuristic
@@ -231,10 +271,10 @@ Treat notebooks as exploration and `scripts/` as the record of results.
 
 **Still to close before submitting:**
 
-1. **Get a Census API key** (free, instant, <https://api.census.gov/data/key_signup.html>).
-   Unlocks women aged 15–44 (ACS `B01001_030E`–`B01001_039E`) as the denominator.
-   "X% of *women of reproductive age*" is far stronger than total population, and
-   reviewers will expect it. This is the single biggest remaining gap.
+1. ~~Get a Census API key~~ **Done — and no key was needed.** Women aged 15–44
+   are now the default denominator, read from the bulk ACS Summary File. The
+   remaining refinement is sub-block-group disaggregation, which currently
+   assumes a uniform age–sex mix within each block group.
 2. **Validate travel times** against a commercial routing engine on ~500 sampled
    routes. Converts the free-flow speed assumption from a limitation into a
    measured calibration. One table, large credibility gain.

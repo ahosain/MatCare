@@ -73,6 +73,8 @@ def main() -> int:
                     help="how many new facilities to site")
     ap.add_argument("--min-candidate-min", type=float, default=20.0,
                     help="only consider places at least this far from care")
+    ap.add_argument("--weight", choices=["women", "pop"], default="women",
+                    help="demand weight: women aged 15-44 (default) or total population")
     args = ap.parse_args()
 
     P.ensure_tree()
@@ -106,15 +108,29 @@ def main() -> int:
     b_xy = np.column_stack([blocks.geometry.x.to_numpy(), blocks.geometry.y.to_numpy()])
     _, b_node = tree.query(b_xy, k=1)
 
+    # Demand weight. Women aged 15-44 are the population that actually uses
+    # obstetric care, so they are the default objective; total population is
+    # kept as a sensitivity option.
+    if args.weight == "women":
+        wf = P.POPULATION_PROC / "block_women.parquet"
+        if not wf.exists():
+            raise SystemExit(f"missing {wf}\n  run: python scripts/10_prepare_acs_women.py")
+        wdf = pd.read_parquet(wf, columns=["GEOID20", "women_15_44"])
+        acc = acc.merge(wdf, on="GEOID20", how="left")
+        acc["women_15_44"] = acc["women_15_44"].fillna(0)
+        weight_col, weight_label = "women_15_44", "women aged 15-44"
+    else:
+        weight_col, weight_label = "POP20", "residents"
+
     under = (
         (acc["net_min"] > args.threshold_min)
-        & (acc["POP20"] > 0)
+        & (acc[weight_col] > 0)
         & np.isfinite(acc["net_min"])
     ).to_numpy()
     d_node = b_node[under]
-    d_pop = acc.loc[under, "POP20"].to_numpy().astype(np.int64)
+    d_pop = acc.loc[under, weight_col].to_numpy().astype(np.float64)
     total_under = int(d_pop.sum())
-    log(f"  underserved: {under.sum():,} blocks, {total_under:,} people "
+    log(f"  underserved: {under.sum():,} blocks, {total_under:,} {weight_label} "
         f"beyond {args.threshold_min:.0f} min")
 
     # ------------------------------------------------------------ candidates
@@ -157,7 +173,7 @@ def main() -> int:
             if idx.size == 0:
                 continue
             new = idx[~covered[idx]]
-            gain = int(d_pop[new].sum())
+            gain = float(d_pop[new].sum())
             if gain > best_gain:
                 best_k, best_gain, best_new = k, gain, new
         if best_k < 0 or best_gain == 0:
@@ -171,8 +187,9 @@ def main() -> int:
                 "rank": step + 1,
                 "place": row["PLACE_NAME"],
                 "place_geoid": row["GEOID"],
-                "pop_newly_covered": best_gain,
+                "pop_newly_covered": int(best_gain),
                 "cum_pop_covered": int(d_pop[covered].sum()),
+                "weight": weight_label,
                 "pct_of_underserved": round(100 * d_pop[covered].sum() / total_under, 2),
                 "geometry": p_pt.iloc[cand_idx[best_k]],
             }
@@ -180,7 +197,7 @@ def main() -> int:
         curve.append({"n_sites": step + 1,
                       "cum_pop_covered": int(d_pop[covered].sum()),
                       "pct_of_underserved": round(100 * d_pop[covered].sum() / total_under, 2)})
-        log(f"  #{step + 1}: {row['PLACE_NAME']:28s} +{best_gain:>8,} "
+        log(f"  #{step + 1}: {row['PLACE_NAME']:28s} +{best_gain:>9,.0f} "
             f"(cum {100 * d_pop[covered].sum() / total_under:5.1f}%)")
         cover[best_k] = np.array([], dtype=int)  # cannot be chosen twice
 
@@ -197,7 +214,7 @@ def main() -> int:
     print("=" * 72)
     print(sit.drop(columns="geometry").to_string(index=False))
     if len(curve):
-        print(f"\n  {total_under:,} Texans currently beyond {args.threshold_min:.0f} min")
+        print(f"\n  {total_under:,} {weight_label} currently beyond {args.threshold_min:.0f} min")
         print(f"  {curve[-1]['cum_pop_covered']:,} ({curve[-1]['pct_of_underserved']}%) "
               f"brought within {args.threshold_min:.0f} min by {len(sit)} new facilities")
     return 0

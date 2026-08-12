@@ -248,7 +248,7 @@ def main() -> int:
     ax.legend(handles=[
         Line2D([0], [0], marker="*", color="none", markerfacecolor=C_BLUE,
                markeredgecolor="white", markersize=17, label="Recommended new facility"),
-        Patch(facecolor=C_ORANGE, alpha=0.55, label="Currently > 30 min from care"),
+        Patch(facecolor=C_ORANGE, alpha=0.55, label="Women 15-44 currently > 30 min from care"),
         Line2D([0], [0], marker="^", color="none", markerfacecolor=INK_MUTED,
                markersize=7, label="Existing obstetric facility"),
     ], loc="lower left", fontsize=8.5, frameon=True, framealpha=0.95)
@@ -266,7 +266,7 @@ def main() -> int:
                         xytext=(6, -12), textcoords="offset points",
                         fontsize=9, color=INK_2, fontweight="bold")
     ax.set_xlabel("Number of new facilities sited", fontsize=9.5, color=INK_2)
-    ax.set_ylabel("Underserved population brought within 30 min (%)",
+    ax.set_ylabel("Underserved women 15–44 brought within 30 min (%)",
                   fontsize=9.5, color=INK_2)
     ax.set_xlim(0, curve["n_sites"].max() + 0.4)
     ax.set_ylim(0, max(ys) * 1.22)
@@ -279,7 +279,7 @@ def main() -> int:
                             / (curve["pct_of_underserved"].iloc[-1] / 100)))
     ax.annotate(
         f"{curve['cum_pop_covered'].iloc[-1]:,} of {total_under:,}\n"
-        f"underserved Texans covered by\n{int(curve['n_sites'].iloc[-1])} new facilities",
+        f"underserved women aged 15–44 covered\nby {int(curve['n_sites'].iloc[-1])} new facilities",
         xy=(0.97, 0.06), xycoords="axes fraction", ha="right", va="bottom",
         fontsize=9, color=INK_2,
         bbox=dict(boxstyle="round,pad=0.5", facecolor="white",
@@ -316,7 +316,7 @@ def main() -> int:
     labels = ["Facilities\nidentified", "Counties\ncovered",
               "Texans > 30 min\nfrom care (100k)"]
     old = [170, 101, 25.8]
-    new = [211, 103, 10.6]
+    new = [211, 103, 10.6]  # 2,581,427 -> 1,059,501, shown in units of 100k
     xpos = np.arange(len(labels))
     ax.bar(xpos - 0.2, old, width=0.38, color=INK_MUTED, label="Exact-name join (previous)")
     ax.bar(xpos + 0.2, new, width=0.38, color=C_BLUE, label="Multi-stage match (this work)")

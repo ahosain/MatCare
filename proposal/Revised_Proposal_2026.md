@@ -24,29 +24,47 @@ labor-and-delivery unit — clinically and politically very different problems.
 **We have already built the measurement that replaces it.** Using the complete
 Texas road network, we computed the drive time and road distance from **every one
 of the 668,757 census blocks in Texas** to the nearest hospital that actually
-provides obstetric care. The results are preliminary but complete — not a sample,
-not a model, every block:
+provides obstetric care, weighted by **women aged 15–44** (ACS 2019–2023, table
+B01001) rather than by total population. The results are preliminary but complete
+— not a sample, not a model, every block:
 
 | Finding | Value |
 |---|---|
 | Active hospitals providing obstetrics on site | **211** |
 | Counties with no obstetric facility | **151 of 254** |
-| Texans more than 30 min from obstetric care | **1,059,501** (3.7%) |
-| Texans more than 30 min from **NICU-capable** care | **3,204,055** (11.1%) |
-| Texans more than 60 min from NICU-capable care | **670,331** (2.3%) |
+| Women aged 15–44 in Texas | **6,180,678** |
+| Women 15–44 more than 30 min from obstetric care | **185,251** (3.0%) |
+| Women 15–44 more than 30 min from **NICU-capable** care | **576,262** (9.4%) |
 | Counties with a hospital but **no obstetric unit** | **78** (1.73M residents) |
 
-That last row is the finding this project is built on. In 78 Texas counties a
-hospital is open and reachable, but no one there can deliver a baby. These are
-not places that need a new hospital — they need an obstetric unit restored inside
-one that already exists, at a fraction of the cost. **No county-level desert map
-can see this distinction, and every published Texas desert map misses it.**
+Measured against the planning benchmarks the field uses, and weighted by the
+population that actually uses obstetric care:
 
-The second finding that matters is the gap between panels (a) and (b) of Figure 1.
-Access to *any* obstetric facility is reasonably good for most Texans. Access to a
-facility with a **neonatal intensive care unit** — the capability that matters in
-a preterm birth or hemorrhage — is three times worse. Proximity to a door is not
-proximity to care, and that distinction is where preventable deaths occur.
+| Benchmark | Women 15–44 within it |
+|---|---|
+| 25 miles of an obstetric facility | 95.9% |
+| 35 miles | 98.6% |
+| 50 miles | 99.7% |
+| 30 minutes | 97.0% |
+| **30 minutes of a NICU-capable facility** | **90.6%** |
+
+Two findings drive this proposal.
+
+**First, the gap between those last two rows.** By distance alone, Texas looks
+adequate: 95.9% of women of reproductive age are within 25 miles of an obstetric
+facility. But only **90.6% are within 30 minutes of a facility with a neonatal
+intensive care unit** — the capability that decides outcomes in a preterm birth
+or a hemorrhage. Measured against NICU-capable care, the share left behind is
+**three times larger** (9.4% vs 3.0%). Proximity to a door is not proximity to
+care, and that distinction is exactly where preventable deaths occur. Panels (a)
+and (b) of Figure 1 show it directly.
+
+**Second, 78 counties have an open hospital where no one can deliver a baby.**
+1.73 million Texans live in them. These are not places that need a new hospital —
+they need an obstetric unit restored inside one that already exists, at a
+fraction of the cost. **No county-level desert map can see this distinction, and
+every published Texas desert map misses it.** It is the cheapest available
+intervention and nobody is currently able to target it.
 
 **Figure 1** — *The access landscape.* (a) Drive time to the nearest obstetric
 facility. (b) Drive time to the nearest NICU-capable facility — visibly and
@@ -99,13 +117,14 @@ served by each candidate site.
 
 ### Aim 1 — Publish the corrected Texas obstetric access baseline *(months 1–4)*
 
-The pipeline is built and runs end to end. Remaining work: add women aged 15–44
-from ACS table B01001 as the denominator (currently total population), validate
-free-flow travel times against a commercial routing engine on a stratified sample
-of ~500 routes, and extend the facility panel backward through CMS Provider of
-Services archives to date obstetric-unit closures rather than describing a single
-snapshot. **Deliverable:** peer-reviewed paper and a public dataset of block-level
-access for all 668,757 Texas blocks.
+The pipeline is built and runs end to end, and the women 15–44 denominator is
+already in place. Remaining work: validate free-flow travel times against a
+commercial routing engine on a stratified sample of ~500 routes; extend the
+facility panel backward through CMS Provider of Services archives so the analysis
+dates obstetric-unit *closures* rather than describing a single snapshot; and
+disaggregate the ACS denominator below block-group level, which currently assumes
+a uniform age–sex mix within each block group. **Deliverable:** peer-reviewed
+paper and a public dataset of block-level access for all 668,757 Texas blocks.
 
 ### Aim 2 — Optimize where the next facility goes *(months 3–9)*
 
@@ -116,8 +135,8 @@ needs staff, utilities and road access — an optimum in empty rangeland is not 
 answer a planner can use.
 
 **This already works.** Figure 2 shows the current output: **ten new facilities
-would bring 399,723 of the 1,059,501 underserved Texans within 30 minutes — 37.7%
-of the gap.** Because coverage is a monotone submodular function, the greedy
+would bring 72,737 of the 178,685 underserved women aged 15–44 within 30 minutes
+— 40.7% of the gap.** Because coverage is a monotone submodular function, the greedy
 solution carries a provable (1 − 1/e) ≈ 63% approximation guarantee, so this is a
 bounded result rather than a heuristic guess.
 
@@ -141,16 +160,17 @@ insufficient:
   does not win.**
 
 **Figure 2** — *From diagnosis to decision.* (a) The ten highest-impact sites over
-currently-underserved territory. (b) Coverage versus number of facilities; the
-curve is what lets a funder choose a defensible stopping point.
+territory where women 15–44 are currently beyond 30 minutes. (b) Coverage versus
+number of facilities; the curve is what lets a funder choose a defensible
+stopping point.
 
 ![Figure 2](../results/figures/proposal_fig2_siting_optimizer.png)
 
 ### Aim 3 — Release the planning platform *(months 8–12)*
 
 A browser tool, free and public: set budget and coverage standard, choose whether
-to weight by all residents or by women of reproductive age, target any obstetric
-facility or only NICU-capable ones, and receive a ranked siting plan with a map
+to weight by women of reproductive age (the default) or all residents, target any
+obstetric facility or only NICU-capable ones, and receive a ranked siting plan with a map
 and an exportable table. Every input dataset is public, every step scripted, and
 the code released under an open license so any state can rerun it. Texas is the
 test case; the method is portable to all fifty states.
@@ -240,9 +260,10 @@ high-performance computing dependency and no recurring API cost.
 
 ## Data sources
 
-All inputs are public. US Census Bureau TIGER/Line 2024 and 2020 Decennial
-population (public domain); Census 2020 Centers of Population; CMS Provider of
-Services file (obstetric and neonatal service codes); HIFLD hospital locations;
+All inputs are public. US Census Bureau TIGER/Line 2024, 2020 Decennial
+population and ACS 2019–2023 (public domain); Census 2020 Centers of Population;
+CMS Provider of Services file (obstetric and neonatal service codes); HIFLD
+hospital locations;
 and OpenStreetMap via Geofabrik for the road network (ODbL — © OpenStreetMap
 contributors), verified against the publisher's published MD5 checksum.
 
