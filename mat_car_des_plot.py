@@ -23,7 +23,7 @@ len(df)
 import pandas as pd
 
 # Load the CSV file
-df = pd.read_csv("texas_obs_facilities_final.csv")
+df = pd.read_csv("data/texas_obs_facilities_final.csv")
 
 # Print all column names
 print(df.columns)
@@ -223,16 +223,34 @@ plt.savefig(RESULTS_DIR / "Texas_Maternity_Facilities_Map.pdf",dpi=600,bbox_inch
 
 
 
-# # To Do:
-# # add red box as maternity care dessert, add county name, add big cities names, add approprite legend, 
+# # To Do — status
 # 
-# Census block polygons and population
+# **All items below are complete.** The work now lives in the numbered, reproducible
+# pipeline in `scripts/`; see `docs/FINDINGS.md` for results and `docs/METHODS.md`
+# for the method.
 # 
-# Census block centroids
+# - [x] Red fill for maternity care deserts — `scripts/06_make_figures.py` → `fig1`
+# - [x] County names — `fig1`, `fig5`
+# - [x] Major city names — all maps
+# - [x] Appropriate legend — all maps
+# - [x] Census block polygons and population — `scripts/02_prepare_census.py`
+#       (668,757 blocks, 2020 population 29,145,505)
+# - [x] Census block centroids — TIGER internal points; official
+#       population-weighted centroids at block-group and tract level
+# - [x] Road network for drive-time/distance — `scripts/03_build_road_network.py`
+#       (OpenStreetMap, 11.0M nodes / 21.6M directed edges)
+# - [x] Distance from each block centroid to nearest facility —
+#       `scripts/04_compute_access.py`, multi-source Dijkstra on the transposed
+#       graph → `fig2` (time), `fig3` (distance)
 # 
-# Road network for drive-time/distance calculations
+# > ⚠️ **Before citing any number:** the facility list is materially incomplete.
+# > 77 counties holding 3.28M people are flagged as deserts despite having
+# > hospitals mapped in OpenStreetMap. See `docs/FINDINGS.md` § 1.
 # 
-# # plot census block centroid to each maternity care facitlity in distance, distance
+# **Cells below reference `tx_counties`, `gdf_fac` and `HasFacility`, which are not
+# defined anywhere in this notebook — those cells were lost, so the map was not
+# reproducible. It has been rebuilt in `scripts/06_make_figures.py`.**
+# 
 
 # In[ ]:
 
