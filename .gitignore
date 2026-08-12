@@ -1,2 +1,10 @@
 # ignore big data file
 data/**
+
+# macOS
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
