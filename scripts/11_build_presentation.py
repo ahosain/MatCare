@@ -634,7 +634,7 @@ def main() -> int:
                   h=Inches(5.4))
     pic.left = Emu(int((SLIDE_W - pic.width) / 2))
     footer(s, "Slide 13 of 15 · (a) road distance to any obstetric facility (miles)  "
-              "(b) drive time to NICU-capable (min — different unit)  "
+              "(b) road distance to NICU-capable, same scale — visibly worse  "
               "(c) population by distance band, miles  (d) hospital but no obstetric unit")
 
     # ================================================== 14 women results

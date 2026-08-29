@@ -56,8 +56,11 @@ facility. But only **90.6% are within 30 minutes of a facility with a neonatal
 intensive care unit** — the capability that decides outcomes in a preterm birth
 or a hemorrhage. Measured against NICU-capable care, the share left behind is
 **three times larger** (9.4% vs 3.0%). Proximity to a door is not proximity to
-care, and that distinction is exactly where preventable deaths occur — the
-30-minute rows of the table above compare like with like.
+care, and that distinction is exactly where preventable deaths occur. Panels (a)
+and (b) of Figure 1 are drawn on the identical mileage scale, so the gap between
+them can be read directly: **5.1% of Texans live more than 25 road miles from any
+obstetric facility, but 13.0% live more than 25 miles from one with a NICU. Past
+50 miles the ratio widens to eleven-fold — 0.4% versus 4.5%.**
 
 **Second, 78 counties have an open hospital where no one can deliver a baby.**
 1.73 million Texans live in them. These are not places that need a new hospital —
@@ -67,9 +70,9 @@ every published Texas desert map misses it.** It is the cheapest available
 intervention and nobody is currently able to target it.
 
 **Figure 1** — *The access landscape.* (a) Road distance to the nearest
-obstetric facility, in miles. (b) Drive time to the nearest NICU-capable
-facility, in minutes — note the different unit and colour scale. (c) Texas
-population by road-distance band, in miles. (d) Counties holding a hospital that has no
+obstetric facility, in miles. (b) Road distance to the nearest NICU-capable
+facility, on the identical scale — the two maps are directly comparable, and (b)
+is visibly darker. (c) Texas population by road-distance band, in miles. (d) Counties holding a hospital that has no
 obstetric unit (gold) versus counties with no hospital at all (pink).
 
 ![Figure 1](../results/figures/proposal_fig1_access_landscape.png)

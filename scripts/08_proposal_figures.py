@@ -113,11 +113,22 @@ def reserve_for_legend(ax, side: str = "bottom", frac: float = 0.16) -> None:
 
 
 def nicu_access(acc: pd.DataFrame) -> np.ndarray:
-    """Drive time (min) from every block to the nearest NICU-capable facility."""
+    """
+    Road distance (miles) from every block to the nearest NICU-capable facility.
+
+    Weighted by ``length_m`` rather than ``time_s`` so panel (b) reports the same
+    quantity, in the same unit and on the same colour scale, as panel (a). That
+    is what makes the two maps directly comparable: any difference in shading is
+    a difference in access, not a difference in units.
+
+    The residual snap distance from the block centroid to the nearest road is
+    added back, exactly as ``04_compute_access.py`` does, so the two panels are
+    built the same way end to end.
+    """
     print("  computing NICU access (one multi-source Dijkstra) ...", flush=True)
     nodes = pd.read_parquet(P.NETWORK_PROC / "network_nodes.parquet")
     edges = pd.read_parquet(P.NETWORK_PROC / "network_edges.parquet",
-                            columns=["u", "v", "time_s"])
+                            columns=["u", "v", "length_m"])
     tf = Transformer.from_crs(P.WGS84, P.TX_ALBERS, always_xy=True)
     x, y = tf.transform(nodes["lon"].to_numpy(), nodes["lat"].to_numpy())
     tree = cKDTree(np.column_stack([x, y]))
@@ -127,16 +138,16 @@ def nicu_access(acc: pd.DataFrame) -> np.ndarray:
     _, fnode = tree.query(np.column_stack([nic.geometry.x, nic.geometry.y]), k=1)
 
     gt = csr_matrix(
-        (edges["time_s"].to_numpy(np.float64),
+        (edges["length_m"].to_numpy(np.float64),
          (edges["u"].to_numpy(), edges["v"].to_numpy())),
         shape=(len(nodes), len(nodes)),
     ).T.tocsr()
-    t = dijkstra(gt, directed=True, indices=np.unique(fnode), min_only=True)
+    d_m = dijkstra(gt, directed=True, indices=np.unique(fnode), min_only=True)
 
     blocks = gpd.read_parquet(P.POPULATION_PROC / "block_points.parquet").to_crs(P.TX_ALBERS)
-    _, bnode = tree.query(np.column_stack([blocks.geometry.x, blocks.geometry.y]), k=1)
+    snap_m, bnode = tree.query(np.column_stack([blocks.geometry.x, blocks.geometry.y]), k=1)
     print(f"  NICU-capable facilities: {len(nic)}")
-    return t[bnode] / 60.0
+    return (d_m[bnode] + snap_m) / 1000.0 / KM_PER_MILE
 
 
 def bg_aggregate(acc: pd.DataFrame, col: str) -> pd.Series:
@@ -160,7 +171,7 @@ def main() -> int:
     bands = pd.read_csv(TABLES / "access_distance_bands_mi.csv")
     print(f"Loaded {len(fac)} facilities, {len(acc):,} blocks")
 
-    acc["nicu_min"] = nicu_access(acc)
+    acc["nicu_mi"] = nicu_access(acc)
 
     bg = bg.merge(bg_aggregate(acc, "net_min").rename("drive_min"),
                   left_on="GEOID", right_index=True, how="left")
@@ -169,7 +180,7 @@ def main() -> int:
     bg = bg.merge(bg_aggregate(acc, "net_km").rename("drive_km"),
                   left_on="GEOID", right_index=True, how="left")
     bg["drive_mi"] = bg["drive_km"] / KM_PER_MILE
-    bg = bg.merge(bg_aggregate(acc, "nicu_min").rename("nicu_min"),
+    bg = bg.merge(bg_aggregate(acc, "nicu_mi").rename("nicu_mi"),
                   left_on="GEOID", right_index=True, how="left")
 
     # Panels (a) and (c) report ROAD DISTANCE; panel (b) reports TRAVEL TIME.
@@ -207,19 +218,20 @@ def main() -> int:
     # -- (b) NICU-capable access ------------------------------------------
     ax = fig.add_subplot(gs[0, 1])
     nic = fac[fac["NICU_ONSITE"]]
-    bg.plot(ax=ax, column="nicu_min", cmap=cmap, norm=norm, linewidth=0, rasterized=True)
+    bg.plot(ax=ax, column="nicu_mi", cmap=cmap_d, norm=norm_d, linewidth=0,
+            rasterized=True)
     counties.boundary.plot(ax=ax, color=NEUTRAL_EDGE, linewidth=0.25)
     nic.plot(ax=ax, marker="^", color=INK, markersize=9, edgecolor="white", linewidth=0.3)
     ax.set_axis_off()
-    panel_tag(ax, "b", "Drive time to nearest NICU-capable facility")
+    panel_tag(ax, "b", "Road distance to nearest NICU-capable facility")
     reserve_for_legend(ax, "bottom", 0.10)
     ax.legend(
-        handles=[Patch(facecolor=cmap(i), label=TIME_LABELS[i]) for i in range(len(TIME_LABELS))]
+        handles=[Patch(facecolor=cmap_d(i), label=DIST_LABELS[i]) for i in range(len(DIST_LABELS))]
         + [Line2D([0], [0], marker="^", color="none", markerfacecolor=INK,
                   markeredgecolor="white", markersize=7,
                   label=f"NICU-capable (n={len(nic)})")],
         loc="lower left", fontsize=8, frameon=True, framealpha=0.95,
-        title="minutes", title_fontsize=8.5,
+        title="miles", title_fontsize=8.5,
     )
 
     # -- (c) population by band -------------------------------------------
@@ -386,15 +398,18 @@ def main() -> int:
     save(fig, "proposal_fig3_method_validation")
 
     # ------------------------------------------------------------- summary
-    pop = acc.loc[acc["reachable"] & (acc["POP20"] > 0), "POP20"].to_numpy()
-    nm = acc.loc[acc["reachable"] & (acc["POP20"] > 0), "nicu_min"].to_numpy()
-    ok = np.isfinite(nm)
-    print("\n--- NICU access, population weighted ---")
-    print(f"  mean {np.average(nm[ok], weights=pop[ok]):.1f} min")
-    for t in (30, 60):
-        share = pop[ok][nm[ok] > t].sum() / pop[ok].sum() * 100
-        print(f"  > {t} min from a NICU-capable facility: "
-              f"{int(pop[ok][nm[ok] > t].sum()):,} ({share:.1f}%)")
+    print("\n--- NICU access by road distance, population weighted ---")
+    ok = np.isfinite(acc["nicu_mi"]) & (acc["POP20"] > 0)
+    wv = acc.loc[ok, "POP20"].to_numpy(float)
+    nv = acc.loc[ok, "nicu_mi"].to_numpy()
+    ov = acc.loc[ok, "net_km"].to_numpy() / KM_PER_MILE
+    print(f"  mean distance to any obstetric facility : {np.average(ov, weights=wv):.1f} mi")
+    print(f"  mean distance to a NICU-capable facility: {np.average(nv, weights=wv):.1f} mi")
+    for cut in (10, 25, 50):
+        a = float(wv[ov > cut].sum())
+        b = float(wv[nv > cut].sum())
+        print(f"  beyond {cut:>3} mi -- any: {a:>10,.0f} ({100 * a / wv.sum():5.2f}%)"
+              f"   NICU: {b:>10,.0f} ({100 * b / wv.sum():5.2f}%)")
     return 0
 
 
