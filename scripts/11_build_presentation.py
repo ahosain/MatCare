@@ -222,8 +222,9 @@ def main() -> int:
     para(tf, "Every Texas census block routed on the real road network. "
              "No sampling, no API, fully reproducible.",
          size=15, color=INK_2, space_after=10, first=True)
-    para(tf, "Data: US Census (TIGER, 2020 Decennial, ACS 2019–2023) · CMS Provider of "
-             "Services · HIFLD · OpenStreetMap", size=12, color=MUTED, space_after=0)
+    para(tf, "Data: US Census (TIGER, 2020 Decennial, ACS 2019–2023) · Centers for "
+             "Medicare & Medicaid Services (CMS) Provider of Services · HIFLD · "
+             "OpenStreetMap", size=12, color=MUTED, space_after=0)
     footer(s, "Project walkthrough · slide 1 of 15")
 
     # ================================================== 2 the question

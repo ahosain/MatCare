@@ -123,7 +123,8 @@ served by each candidate site.
 The pipeline is built and runs end to end, and the women 15–44 denominator is
 already in place. Remaining work: validate free-flow travel times against a
 commercial routing engine on a stratified sample of ~500 routes; extend the
-facility panel backward through CMS Provider of Services archives so the analysis
+facility panel backward through Centers for Medicare & Medicaid Services (CMS)
+Provider of Services archives so the analysis
 dates obstetric-unit *closures* rather than describing a single snapshot; and
 disaggregate the ACS denominator below block-group level, which currently assumes
 a uniform age–sex mix within each block group. **Deliverable:** peer-reviewed
@@ -188,7 +189,7 @@ facility list changed.
 
 | Risk | Mitigation |
 |---|---|
-| CMS obstetric-service flags lag real closures | Cross-check against Texas DSHS maternal designations and AHA survey; report the vintage of every flag |
+| CMS obstetric-service flags lag real closures | Cross-check against Texas Department of State Health Services (DSHS) maternal designations and the American Hospital Association (AHA) Annual Survey; report the vintage of every flag |
 | Free-flow travel times ignore congestion | Aim 1 calibrates against a commercial routing engine; distance results are unaffected |
 | RL underperforms ILP | Explicitly an experimental comparison, not an assumption; ILP is the shipped default |
 | Cross-border access unmodeled | Extend the network extract to bordering states for border counties |
