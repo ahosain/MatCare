@@ -15,6 +15,7 @@ fig2_drive_time               block-group choropleth, drive time to nearest
                               obstetric facility
 fig3_drive_distance           block-group choropleth, drive distance
 fig4_population_by_drivetime  population living in each drive-time band
+fig4a_population_by_drivedist population living in each road-distance band
 fig5_facility_validation      counties flagged as deserts that nonetheless have
                               hospitals mapped in OpenStreetMap
 
@@ -199,6 +200,35 @@ def choropleth(bg, counties, fac, column, bounds, labels, ramp, title, unit, ste
     save(fig, stem)
 
 
+def band_chart(table_path, band_col: str, xlabel: str, ramp, stem: str) -> None:
+    """
+    Population-by-band bar chart.
+
+    Used for both the drive-time and the road-distance distributions, so the two
+    figures cannot drift apart in styling. `ramp` follows the project convention:
+    blue encodes travel time, orange encodes distance.
+    """
+    bands = pd.read_csv(table_path)
+    fig, ax = plt.subplots(figsize=(9, 5.2))
+    cmap = LinearSegmentedColormap.from_list("seq", ramp, N=len(bands))
+    bars = ax.bar(bands[band_col], bands["population"] / 1e6,
+                  color=[cmap(i) for i in range(len(bands))], width=0.68)
+    for b, pct, popm in zip(bars, bands["pct_of_state"], bands["population"] / 1e6):
+        ax.annotate(f"{popm:,.2f} M\n{pct:.1f}%",
+                    xy=(b.get_x() + b.get_width() / 2, b.get_height()),
+                    xytext=(0, 4), textcoords="offset points",
+                    ha="center", va="bottom", fontsize=8.5, color=INK_2)
+    ax.set_xlabel(xlabel, fontsize=10, color=INK_2)
+    ax.set_ylabel("Texas population (millions)", fontsize=10, color=INK_2)
+    ax.set_ylim(0, (bands["population"].max() / 1e6) * 1.18)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="y", color="#e8e7e2", linewidth=0.8)
+    ax.set_axisbelow(True)
+    ax.tick_params(colors=INK_2, labelsize=9)
+    plt.tight_layout()
+    save(fig, stem)
+
+
 def main() -> int:
     counties, fac, bg, acc = load_layers()
     print(f"Loaded {len(counties)} counties, {len(fac)} facilities, "
@@ -258,27 +288,17 @@ def main() -> int:
 
     # ---------------------------------------------------------------- fig 4
     print("\n[fig4] population by drive-time band")
-    bands = pd.read_csv(TABLES / "access_time_bands.csv")
-    fig, ax = plt.subplots(figsize=(9, 5.2))
-    cmap = LinearSegmentedColormap.from_list("seq", SEQ_BLUE, N=len(bands))
-    bars = ax.bar(
-        bands["band_min"], bands["population"] / 1e6,
-        color=[cmap(i) for i in range(len(bands))], width=0.68,
-    )
-    for b, pct, popm in zip(bars, bands["pct_of_state"], bands["population"] / 1e6):
-        ax.annotate(f"{popm:,.2f} M\n{pct:.1f}%", xy=(b.get_x() + b.get_width() / 2,
-                    b.get_height()), xytext=(0, 4), textcoords="offset points",
-                    ha="center", va="bottom", fontsize=8.5, color=INK_2)
-    ax.set_xlabel("Drive time to nearest obstetric facility (minutes)",
-                  fontsize=10, color=INK_2)
-    ax.set_ylabel("Texas population (millions)", fontsize=10, color=INK_2)
-    ax.set_ylim(0, (bands["population"].max() / 1e6) * 1.18)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.grid(axis="y", color="#e8e7e2", linewidth=0.8)
-    ax.set_axisbelow(True)
-    ax.tick_params(colors=INK_2, labelsize=9)
-    plt.tight_layout()
-    save(fig, "fig4_population_by_drivetime")
+    band_chart(TABLES / "access_time_bands.csv", "band_min",
+               "Drive time to nearest obstetric facility (minutes)",
+               SEQ_BLUE, "fig4_population_by_drivetime")
+
+    # --------------------------------------------------------------- fig 4a
+    # The same distribution in road kilometres. Distance carries none of the
+    # free-flow speed assumptions, so it is the more robust of the two views.
+    print("\n[fig4a] population by road-distance band")
+    band_chart(TABLES / "access_distance_bands.csv", "band_km",
+               "Road distance to nearest obstetric facility (km)",
+               SEQ_ORANGE, "fig4a_population_by_drivedist")
 
     # ---------------------------------------------------------------- fig 5
     print("\n[fig5] facility-list validation")

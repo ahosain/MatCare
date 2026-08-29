@@ -56,8 +56,8 @@ facility. But only **90.6% are within 30 minutes of a facility with a neonatal
 intensive care unit** — the capability that decides outcomes in a preterm birth
 or a hemorrhage. Measured against NICU-capable care, the share left behind is
 **three times larger** (9.4% vs 3.0%). Proximity to a door is not proximity to
-care, and that distinction is exactly where preventable deaths occur. Panels (a)
-and (b) of Figure 1 show it directly.
+care, and that distinction is exactly where preventable deaths occur — the
+30-minute rows of the table above compare like with like.
 
 **Second, 78 counties have an open hospital where no one can deliver a baby.**
 1.73 million Texans live in them. These are not places that need a new hospital —
@@ -66,11 +66,11 @@ fraction of the cost. **No county-level desert map can see this distinction, and
 every published Texas desert map misses it.** It is the cheapest available
 intervention and nobody is currently able to target it.
 
-**Figure 1** — *The access landscape.* (a) Drive time to the nearest obstetric
-facility. (b) Drive time to the nearest NICU-capable facility — visibly and
-substantially worse. (c) Population by drive-time band. (d) Counties holding a
-hospital that has no obstetric unit (gold) versus counties with no hospital at
-all (pink).
+**Figure 1** — *The access landscape.* (a) Road distance to the nearest
+obstetric facility, in kilometres. (b) Drive time to the nearest NICU-capable
+facility, in minutes — note the different unit and colour scale. (c) Texas
+population by road-distance band. (d) Counties holding a hospital that has no
+obstetric unit (gold) versus counties with no hospital at all (pink).
 
 ![Figure 1](../results/figures/proposal_fig1_access_landscape.png)
 
@@ -214,9 +214,12 @@ learning comparison.
 **Lokesh Das, PhD** (co-I), Assistant Professor, School of Computing, Wichita State
 University. Solution framework, data integration, and the planning platform.
 
-**Alamgir Hosain** (co-I), doctoral candidate, University of Memphis. Built the
-existing geospatial pipeline; leads data acquisition, the road-network router,
-and reproducibility.
+**Alamgir Hosain, PhD** (co-I), Research Scientist, EnviTrace, Santa Fe, New
+Mexico. Computational geoscientist. Built the preliminary study underpinning this
+proposal — the corrected facility registry, the 11-million-node road network, and
+the routing engine. Leads data acquisition and integration, the demand surfaces
+driving the optimization models, probabilistic coverage under budget constraints,
+and reproducibility of the released software.
 
 ---
 

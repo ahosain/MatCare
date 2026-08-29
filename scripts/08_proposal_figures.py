@@ -5,9 +5,9 @@
 Build the three figures carried by the Discovery Foundation proposal.
 
     FIG 1  The access landscape (4-panel "superfigure")
-           a. statewide drive time to the nearest obstetric facility
+           a. statewide ROAD DISTANCE to the nearest obstetric facility
            b. population by drive-time band
-           c. the level-of-care gap: any obstetric unit vs NICU-capable
+           c. population by road-distance band
            d. counties with a hospital but no obstetric service
 
     FIG 2  From diagnosis to decision - the siting optimiser
@@ -62,6 +62,8 @@ C_BLUE, C_ORANGE, C_AQUA, C_YELLOW, C_RED = (
 
 TIME_BOUNDS = [0, 15, 30, 45, 60, 90, np.inf]
 TIME_LABELS = ["< 15", "15–30", "30–45", "45–60", "60–90", "90 +"]
+DIST_BOUNDS = [0, 10, 25, 50, 80, 160, np.inf]
+DIST_LABELS = ["< 10", "10–25", "25–50", "50–80", "80–160", "160 +"]
 
 mpl.rcParams.update({
     "figure.facecolor": SURFACE, "savefig.facecolor": SURFACE,
@@ -129,16 +131,26 @@ def main() -> int:
     bg = gpd.read_parquet(P.POPULATION_PROC / "blockgroups.parquet").to_crs(P.TX_ALBERS)
     fac = gpd.read_parquet(P.FACILITIES_PROC / "facilities_analysis.parquet").to_crs(P.TX_ALBERS)
     acc = pd.read_parquet(P.FACILITIES_PROC / "block_access.parquet")
-    bands = pd.read_csv(TABLES / "access_time_bands.csv")
+    bands = pd.read_csv(TABLES / "access_distance_bands.csv")
     print(f"Loaded {len(fac)} facilities, {len(acc):,} blocks")
 
     acc["nicu_min"] = nicu_access(acc)
 
     bg = bg.merge(bg_aggregate(acc, "net_min").rename("drive_min"),
                   left_on="GEOID", right_index=True, how="left")
+    # Panel (a) reports road distance, so the block-group aggregate of net_km
+    # is needed as well as the travel-time aggregate used by panel (b).
+    bg = bg.merge(bg_aggregate(acc, "net_km").rename("drive_km"),
+                  left_on="GEOID", right_index=True, how="left")
     bg = bg.merge(bg_aggregate(acc, "nicu_min").rename("nicu_min"),
                   left_on="GEOID", right_index=True, how="left")
 
+    # Panels (a) and (c) report ROAD DISTANCE; panel (b) reports TRAVEL TIME.
+    # They therefore get different hues as well as different legends, so the
+    # unit change is visible at a glance and the two maps cannot be misread as
+    # directly comparable.
+    cmap_d = LinearSegmentedColormap.from_list("seq_d", SEQ_ORANGE, N=len(DIST_LABELS))
+    norm_d = BoundaryNorm(DIST_BOUNDS, cmap_d.N)
     cmap = LinearSegmentedColormap.from_list("seq", SEQ_BLUE, N=len(TIME_LABELS))
     norm = BoundaryNorm(TIME_BOUNDS, cmap.N)
 
@@ -149,18 +161,19 @@ def main() -> int:
 
     # -- (a) statewide drive time -----------------------------------------
     ax = fig.add_subplot(gs[0, 0])
-    bg.plot(ax=ax, column="drive_min", cmap=cmap, norm=norm, linewidth=0, rasterized=True)
+    bg.plot(ax=ax, column="drive_km", cmap=cmap_d, norm=norm_d, linewidth=0,
+            rasterized=True)
     counties.boundary.plot(ax=ax, color=NEUTRAL_EDGE, linewidth=0.25)
     fac.plot(ax=ax, marker="^", color=INK, markersize=9, edgecolor="white", linewidth=0.3)
     ax.set_axis_off()
-    panel_tag(ax, "a", "Drive time to nearest obstetric facility")
+    panel_tag(ax, "a", "Road distance to nearest obstetric facility")
     ax.legend(
-        handles=[Patch(facecolor=cmap(i), label=TIME_LABELS[i]) for i in range(len(TIME_LABELS))]
+        handles=[Patch(facecolor=cmap_d(i), label=DIST_LABELS[i]) for i in range(len(DIST_LABELS))]
         + [Line2D([0], [0], marker="^", color="none", markerfacecolor=INK,
                   markeredgecolor="white", markersize=7,
                   label=f"Obstetric facility (n={len(fac)})")],
         loc="lower left", fontsize=8, frameon=True, framealpha=0.95,
-        title="minutes", title_fontsize=8.5,
+        title="kilometres", title_fontsize=8.5,
     )
 
     # -- (b) NICU-capable access ------------------------------------------
@@ -171,21 +184,25 @@ def main() -> int:
     nic.plot(ax=ax, marker="^", color=INK, markersize=9, edgecolor="white", linewidth=0.3)
     ax.set_axis_off()
     panel_tag(ax, "b", "Drive time to nearest NICU-capable facility")
-    ax.legend(handles=[Line2D([0], [0], marker="^", color="none", markerfacecolor=INK,
-                              markeredgecolor="white", markersize=7,
-                              label=f"NICU-capable (n={len(nic)})")],
-              loc="lower left", fontsize=8, frameon=True, framealpha=0.95)
+    ax.legend(
+        handles=[Patch(facecolor=cmap(i), label=TIME_LABELS[i]) for i in range(len(TIME_LABELS))]
+        + [Line2D([0], [0], marker="^", color="none", markerfacecolor=INK,
+                  markeredgecolor="white", markersize=7,
+                  label=f"NICU-capable (n={len(nic)})")],
+        loc="lower left", fontsize=8, frameon=True, framealpha=0.95,
+        title="minutes", title_fontsize=8.5,
+    )
 
     # -- (c) population by band -------------------------------------------
     ax = fig.add_subplot(gs[1, 0])
-    bars = ax.bar(bands["band_min"], bands["population"] / 1e6, width=0.66,
-                  color=[cmap(i) for i in range(len(bands))])
+    bars = ax.bar(bands["band_km"], bands["population"] / 1e6, width=0.66,
+                  color=[cmap_d(i) for i in range(len(bands))])
     for b, pct, pm in zip(bars, bands["pct_of_state"], bands["population"] / 1e6):
         ax.annotate(f"{pm:.2f}M\n{pct:.1f}%",
                     xy=(b.get_x() + b.get_width() / 2, b.get_height()),
                     xytext=(0, 4), textcoords="offset points", ha="center",
                     va="bottom", fontsize=8, color=INK_2)
-    ax.set_xlabel("Drive time to nearest obstetric facility (minutes)",
+    ax.set_xlabel("Road distance to nearest obstetric facility (km)",
                   fontsize=9.5, color=INK_2)
     ax.set_ylabel("Texas population (millions)", fontsize=9.5, color=INK_2)
     ax.set_ylim(0, (bands["population"].max() / 1e6) * 1.2)

@@ -273,6 +273,22 @@ def main() -> int:
     bands = pd.DataFrame(band_rows)
     bands.to_csv(TABLES / "access_time_bands.csv", index=False)
 
+    # The same distribution measured in road kilometres. Distance does not
+    # depend on the free-flow speed assumptions at all, so this is the more
+    # robust of the two views and is worth reporting alongside travel time.
+    dist_rows = []
+    for lo, hi in zip(DIST_BINS_KM[:-1], DIST_BINS_KM[1:]):
+        m = (dkm >= lo) & (dkm < hi)
+        dist_rows.append(
+            {
+                "band_km": f"{lo}-{hi:g}" if np.isfinite(hi) else f"{lo}+",
+                "population": int(w[m].sum()),
+                "pct_of_state": round(100 * w[m].sum() / total_pop, 2),
+            }
+        )
+    dist_bands = pd.DataFrame(dist_rows)
+    dist_bands.to_csv(TABLES / "access_distance_bands.csv", index=False)
+
     # County roll-up, population weighted.
     out["_pw_time"] = out["net_min"] * out["POP20"]
     out["_pw_dist"] = out["net_km"] * out["POP20"]
@@ -310,6 +326,8 @@ def main() -> int:
 
     print("\n--- Population by drive-time band ---")
     print(bands.to_string(index=False))
+    print("\n--- Population by road-distance band ---")
+    print(dist_bands.to_string(index=False))
 
     over30 = int(w[tmin > 30].sum())
     over60 = int(w[tmin > 60].sum())
