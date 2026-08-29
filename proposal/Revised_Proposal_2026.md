@@ -67,9 +67,9 @@ every published Texas desert map misses it.** It is the cheapest available
 intervention and nobody is currently able to target it.
 
 **Figure 1** — *The access landscape.* (a) Road distance to the nearest
-obstetric facility, in kilometres. (b) Drive time to the nearest NICU-capable
+obstetric facility, in miles. (b) Drive time to the nearest NICU-capable
 facility, in minutes — note the different unit and colour scale. (c) Texas
-population by road-distance band. (d) Counties holding a hospital that has no
+population by road-distance band, in miles. (d) Counties holding a hospital that has no
 obstetric unit (gold) versus counties with no hospital at all (pink).
 
 ![Figure 1](../results/figures/proposal_fig1_access_landscape.png)

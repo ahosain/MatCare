@@ -633,9 +633,9 @@ def main() -> int:
     pic = picture(s, "proposal_fig1_access_landscape", Inches(0), Inches(1.32),
                   h=Inches(5.4))
     pic.left = Emu(int((SLIDE_W - pic.width) / 2))
-    footer(s, "Slide 13 of 15 · (a) road distance to any obstetric facility (km)  "
+    footer(s, "Slide 13 of 15 · (a) road distance to any obstetric facility (miles)  "
               "(b) drive time to NICU-capable (min — different unit)  "
-              "(c) population by distance band  (d) hospital but no obstetric unit")
+              "(c) population by distance band, miles  (d) hospital but no obstetric unit")
 
     # ================================================== 14 women results
     s = blank(prs)

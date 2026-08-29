@@ -5,7 +5,7 @@
 Build the three figures carried by the Discovery Foundation proposal.
 
     FIG 1  The access landscape (4-panel "superfigure")
-           a. statewide ROAD DISTANCE to the nearest obstetric facility
+           a. statewide ROAD DISTANCE (miles) to the nearest obstetric facility
            b. population by drive-time band
            c. population by road-distance band
            d. counties with a hospital but no obstetric service
@@ -62,8 +62,11 @@ C_BLUE, C_ORANGE, C_AQUA, C_YELLOW, C_RED = (
 
 TIME_BOUNDS = [0, 15, 30, 45, 60, 90, np.inf]
 TIME_LABELS = ["< 15", "15–30", "30–45", "45–60", "60–90", "90 +"]
+# Distance bands in MILES. Texas planners and the Foundation work in miles, so
+# every distance the proposal reports is in miles; the pipeline stores km.
 DIST_BOUNDS = [0, 10, 25, 50, 80, 160, np.inf]
 DIST_LABELS = ["< 10", "10–25", "25–50", "50–80", "80–160", "160 +"]
+KM_PER_MILE = 1.609344
 
 mpl.rcParams.update({
     "figure.facecolor": SURFACE, "savefig.facecolor": SURFACE,
@@ -84,6 +87,29 @@ def save(fig, stem: str) -> None:
 def panel_tag(ax, letter: str, title: str) -> None:
     ax.set_title(f"  {letter}  {title}", loc="left", fontsize=11.5,
                  fontweight="bold", color=INK, pad=8)
+
+
+def reserve_for_legend(ax, side: str = "bottom", frac: float = 0.16) -> None:
+    """
+    Expand the axis limits so a legend has guaranteed clear space.
+
+    Texas leaves the lower-left of a map panel empty, which is why legends live
+    there - but nudging one upward, or into a corner the state actually reaches,
+    puts it on top of the map. Rather than hand-tuning anchors per panel, this
+    grows the view box on the chosen side by `frac` of the current span. The
+    state is drawn smaller but nothing is ever covered.
+    """
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+    dx, dy = x1 - x0, y1 - y0
+    if side == "bottom":
+        ax.set_ylim(y0 - dy * frac, y1)
+    elif side == "top":
+        ax.set_ylim(y0, y1 + dy * frac)
+    elif side == "left":
+        ax.set_xlim(x0 - dx * frac, x1)
+    elif side == "right":
+        ax.set_xlim(x0, x1 + dx * frac)
 
 
 def nicu_access(acc: pd.DataFrame) -> np.ndarray:
@@ -131,7 +157,7 @@ def main() -> int:
     bg = gpd.read_parquet(P.POPULATION_PROC / "blockgroups.parquet").to_crs(P.TX_ALBERS)
     fac = gpd.read_parquet(P.FACILITIES_PROC / "facilities_analysis.parquet").to_crs(P.TX_ALBERS)
     acc = pd.read_parquet(P.FACILITIES_PROC / "block_access.parquet")
-    bands = pd.read_csv(TABLES / "access_distance_bands.csv")
+    bands = pd.read_csv(TABLES / "access_distance_bands_mi.csv")
     print(f"Loaded {len(fac)} facilities, {len(acc):,} blocks")
 
     acc["nicu_min"] = nicu_access(acc)
@@ -142,6 +168,7 @@ def main() -> int:
     # is needed as well as the travel-time aggregate used by panel (b).
     bg = bg.merge(bg_aggregate(acc, "net_km").rename("drive_km"),
                   left_on="GEOID", right_index=True, how="left")
+    bg["drive_mi"] = bg["drive_km"] / KM_PER_MILE
     bg = bg.merge(bg_aggregate(acc, "nicu_min").rename("nicu_min"),
                   left_on="GEOID", right_index=True, how="left")
 
@@ -156,24 +183,25 @@ def main() -> int:
 
     # ==================================================== FIG 1 superfigure
     print("\n[FIG 1] access landscape")
-    fig = plt.figure(figsize=(16, 13.5))
-    gs = fig.add_gridspec(2, 2, height_ratios=[1.35, 1], hspace=0.10, wspace=0.06)
+    fig = plt.figure(figsize=(16, 12.6))
+    gs = fig.add_gridspec(2, 2, height_ratios=[1.30, 1], hspace=0.10, wspace=0.04)
 
     # -- (a) statewide drive time -----------------------------------------
     ax = fig.add_subplot(gs[0, 0])
-    bg.plot(ax=ax, column="drive_km", cmap=cmap_d, norm=norm_d, linewidth=0,
+    bg.plot(ax=ax, column="drive_mi", cmap=cmap_d, norm=norm_d, linewidth=0,
             rasterized=True)
     counties.boundary.plot(ax=ax, color=NEUTRAL_EDGE, linewidth=0.25)
     fac.plot(ax=ax, marker="^", color=INK, markersize=9, edgecolor="white", linewidth=0.3)
     ax.set_axis_off()
     panel_tag(ax, "a", "Road distance to nearest obstetric facility")
+    reserve_for_legend(ax, "bottom", 0.10)
     ax.legend(
         handles=[Patch(facecolor=cmap_d(i), label=DIST_LABELS[i]) for i in range(len(DIST_LABELS))]
         + [Line2D([0], [0], marker="^", color="none", markerfacecolor=INK,
                   markeredgecolor="white", markersize=7,
                   label=f"Obstetric facility (n={len(fac)})")],
         loc="lower left", fontsize=8, frameon=True, framealpha=0.95,
-        title="kilometres", title_fontsize=8.5,
+        title="miles", title_fontsize=8.5,
     )
 
     # -- (b) NICU-capable access ------------------------------------------
@@ -184,6 +212,7 @@ def main() -> int:
     nic.plot(ax=ax, marker="^", color=INK, markersize=9, edgecolor="white", linewidth=0.3)
     ax.set_axis_off()
     panel_tag(ax, "b", "Drive time to nearest NICU-capable facility")
+    reserve_for_legend(ax, "bottom", 0.10)
     ax.legend(
         handles=[Patch(facecolor=cmap(i), label=TIME_LABELS[i]) for i in range(len(TIME_LABELS))]
         + [Line2D([0], [0], marker="^", color="none", markerfacecolor=INK,
@@ -195,14 +224,14 @@ def main() -> int:
 
     # -- (c) population by band -------------------------------------------
     ax = fig.add_subplot(gs[1, 0])
-    bars = ax.bar(bands["band_km"], bands["population"] / 1e6, width=0.66,
+    bars = ax.bar(bands["band_mi"], bands["population"] / 1e6, width=0.66,
                   color=[cmap_d(i) for i in range(len(bands))])
     for b, pct, pm in zip(bars, bands["pct_of_state"], bands["population"] / 1e6):
         ax.annotate(f"{pm:.2f}M\n{pct:.1f}%",
                     xy=(b.get_x() + b.get_width() / 2, b.get_height()),
                     xytext=(0, 4), textcoords="offset points", ha="center",
                     va="bottom", fontsize=8, color=INK_2)
-    ax.set_xlabel("Road distance to nearest obstetric facility (km)",
+    ax.set_xlabel("Road distance to nearest obstetric facility (miles)",
                   fontsize=9.5, color=INK_2)
     ax.set_ylabel("Texas population (millions)", fontsize=9.5, color=INK_2)
     ax.set_ylim(0, (bands["population"].max() / 1e6) * 1.2)
@@ -225,18 +254,19 @@ def main() -> int:
     c5[hosp_no_ob].plot(ax=ax, color=C_YELLOW, alpha=0.85, edgecolor="#9c6b00", linewidth=0.5)
     ax.set_axis_off()
     panel_tag(ax, "d", "Counties with a hospital but no obstetric unit")
+    reserve_for_legend(ax, "top", 0.17)
     pop_hosp_no_ob = int(c5.loc[hosp_no_ob, "population"].sum())
     ax.legend(
         handles=[
             Patch(facecolor=C_YELLOW, alpha=0.85, edgecolor="#9c6b00",
-                  label=f"Hospital, no obstetric unit ({int(hosp_no_ob.sum())} counties,\n"
-                        f"{pop_hosp_no_ob / 1e6:.2f}M residents)"),
+                  label=f"Hospital, no obstetric unit — {int(hosp_no_ob.sum())} counties, "
+                        f"{pop_hosp_no_ob / 1e6:.2f}M people"),
             Patch(facecolor=C_RED, alpha=0.35, edgecolor="#a32e2d",
                   label=f"No hospital at all ({int(neither.sum())} counties)"),
             Patch(facecolor=NEUTRAL_FILL, edgecolor=NEUTRAL_EDGE,
                   label=f"Obstetric unit present ({int(has_ob.sum())} counties)"),
         ],
-        loc="lower left", fontsize=8, frameon=True, framealpha=0.95)
+        loc="upper right", fontsize=8, frameon=True, framealpha=0.95)
 
     save(fig, "proposal_fig1_access_landscape")
 

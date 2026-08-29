@@ -78,6 +78,11 @@ MPH_TO_MS = 0.44704
 # the obstetric-access literature; 50 miles mirrors HRSA-style distance rules.
 TIME_BINS_MIN = [0, 15, 30, 45, 60, 90, np.inf]
 DIST_BINS_KM = [0, 10, 25, 50, 80, 160, np.inf]
+# Same band edges expressed in miles. Texas planners and the Foundation work in
+# miles, so the proposal figures use these; the kilometre bands are retained for
+# the paper and for any international comparison.
+DIST_BINS_MI = [0, 10, 25, 50, 80, 160, np.inf]
+KM_PER_MILE = 1.609344
 
 
 def log(msg: str) -> None:
@@ -289,6 +294,20 @@ def main() -> int:
     dist_bands = pd.DataFrame(dist_rows)
     dist_bands.to_csv(TABLES / "access_distance_bands.csv", index=False)
 
+    dmi = dkm / KM_PER_MILE
+    mi_rows = []
+    for lo, hi in zip(DIST_BINS_MI[:-1], DIST_BINS_MI[1:]):
+        m = (dmi >= lo) & (dmi < hi)
+        mi_rows.append(
+            {
+                "band_mi": f"{lo}-{hi:g}" if np.isfinite(hi) else f"{lo}+",
+                "population": int(w[m].sum()),
+                "pct_of_state": round(100 * w[m].sum() / total_pop, 2),
+            }
+        )
+    mi_bands = pd.DataFrame(mi_rows)
+    mi_bands.to_csv(TABLES / "access_distance_bands_mi.csv", index=False)
+
     # County roll-up, population weighted.
     out["_pw_time"] = out["net_min"] * out["POP20"]
     out["_pw_dist"] = out["net_km"] * out["POP20"]
@@ -326,8 +345,10 @@ def main() -> int:
 
     print("\n--- Population by drive-time band ---")
     print(bands.to_string(index=False))
-    print("\n--- Population by road-distance band ---")
+    print("\n--- Population by road-distance band (km) ---")
     print(dist_bands.to_string(index=False))
+    print("\n--- Population by road-distance band (miles) ---")
+    print(mi_bands.to_string(index=False))
 
     over30 = int(w[tmin > 30].sum())
     over60 = int(w[tmin > 60].sum())

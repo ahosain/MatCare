@@ -72,8 +72,10 @@ FACILITY_BLUE = "#2a78d6"
 
 TIME_BOUNDS = [0, 15, 30, 45, 60, 90, np.inf]
 TIME_LABELS = ["< 15", "15 – 30", "30 – 45", "45 – 60", "60 – 90", "90 +"]
+# Distance bands in MILES - the unit the proposal and its audience use.
 DIST_BOUNDS = [0, 10, 25, 50, 80, 160, np.inf]
 DIST_LABELS = ["< 10", "10 – 25", "25 – 50", "50 – 80", "80 – 160", "160 +"]
+KM_PER_MILE = 1.609344
 
 # Major Texas cities for orientation labels.
 MAJOR_CITIES = {
@@ -156,7 +158,8 @@ def bg_access(acc: pd.DataFrame) -> pd.DataFrame:
     # map has no holes; they carry no weight in any statistic.
     g["drive_min"] = np.where(g["pop"] > 0, g["t"] / g["pop"].replace(0, np.nan), g["t_unw"])
     g["drive_km"] = np.where(g["pop"] > 0, g["d"] / g["pop"].replace(0, np.nan), g["d_unw"])
-    return g[["pop", "drive_min", "drive_km"]]
+    g["drive_mi"] = g["drive_km"] / KM_PER_MILE
+    return g[["pop", "drive_min", "drive_km", "drive_mi"]]
 
 
 def choropleth(bg, counties, fac, column, bounds, labels, ramp, title, unit, stem):
@@ -282,8 +285,8 @@ def main() -> int:
 
     # ---------------------------------------------------------------- fig 3
     print("\n[fig3] drive distance to nearest obstetric facility")
-    choropleth(bg, counties, fac, "drive_km", DIST_BOUNDS, DIST_LABELS, SEQ_ORANGE,
-               "Road distance to nearest\nobstetric facility", "kilometres",
+    choropleth(bg, counties, fac, "drive_mi", DIST_BOUNDS, DIST_LABELS, SEQ_ORANGE,
+               "Road distance to nearest\nobstetric facility", "miles",
                "fig3_drive_distance")
 
     # ---------------------------------------------------------------- fig 4
@@ -296,8 +299,8 @@ def main() -> int:
     # The same distribution in road kilometres. Distance carries none of the
     # free-flow speed assumptions, so it is the more robust of the two views.
     print("\n[fig4a] population by road-distance band")
-    band_chart(TABLES / "access_distance_bands.csv", "band_km",
-               "Road distance to nearest obstetric facility (km)",
+    band_chart(TABLES / "access_distance_bands_mi.csv", "band_mi",
+               "Road distance to nearest obstetric facility (miles)",
                SEQ_ORANGE, "fig4a_population_by_drivedist")
 
     # ---------------------------------------------------------------- fig 5
