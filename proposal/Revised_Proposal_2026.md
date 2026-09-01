@@ -10,23 +10,21 @@
 
 Texas has the largest population of reproductive-age women of any state without a
 statewide obstetric access standard. Maternal mortality rose 63% between 2018 and
-2020, and the state review committee judged most of those deaths preventable
-(Texas Women's Healthcare Coalition, 2024). Where a woman lives determines whether
-she reaches skilled care in time.
+2020, and most of those deaths were judged preventable (Texas Women's Healthcare
+Coalition, 2024). Where a woman lives determines whether she reaches skilled care
+in time.
 
 The standard measure of that risk — the "maternity care desert," a county with no
-obstetric facility — is too coarse to act on. A county is not a service area.
-Counties in Texas range from 386 to 16,040 km²; averaging access across one hides
-exactly the variation a planner needs. Worse, the county-level measure cannot
-distinguish a county that never had a hospital from one whose hospital closed its
-labor-and-delivery unit — clinically and politically very different problems.
+obstetric facility — is too coarse to act on. Texas counties range from 386 to
+16,040 km², so averaging access across one hides exactly the variation a planner
+needs, and the measure cannot distinguish a county that never had a hospital from
+one whose hospital closed its labor-and-delivery unit.
 
-**We have already built the measurement that replaces it.** Using the complete
-Texas road network, we computed the drive time and road distance from **every one
-of the 668,757 census blocks in Texas** to the nearest hospital that actually
-provides obstetric care, weighted by **women aged 15–44** (ACS 2019–2023, table
-B01001) rather than by total population. The results are preliminary but complete
-— not a sample, not a model, every block:
+**We have already built the measurement that replaces it.** On the complete Texas
+road network we computed drive time and road distance from **every one of the
+668,757 census blocks** to the nearest hospital that actually provides obstetric
+care, weighted by **women aged 15–44** (ACS 2019–2023, table B01001). Complete,
+not sampled:
 
 | Finding | Value |
 |---|---|
@@ -37,8 +35,7 @@ B01001) rather than by total population. The results are preliminary but complet
 | Women 15–44 more than 30 min from **NICU-capable** care | **576,262** (9.4%) |
 | Counties with a hospital but **no obstetric unit** | **78** (1.73M residents) |
 
-Measured against the planning benchmarks the field uses, and weighted by the
-population that actually uses obstetric care:
+Against the planning benchmarks the field uses:
 
 | Benchmark | Women 15–44 within it |
 |---|---|
@@ -50,30 +47,28 @@ population that actually uses obstetric care:
 
 Two findings drive this proposal.
 
-**First, the gap between those last two rows.** By distance alone, Texas looks
-adequate: 95.9% of women of reproductive age are within 25 miles of an obstetric
-facility. But only **90.6% are within 30 minutes of a facility with a neonatal
-intensive care unit** — the capability that decides outcomes in a preterm birth
-or a hemorrhage. Measured against NICU-capable care, the share left behind is
-**three times larger** (9.4% vs 3.0%). Proximity to a door is not proximity to
-care, and that distinction is exactly where preventable deaths occur. Panels (a)
-and (b) of Figure 1 are drawn on the identical mileage scale, so the gap between
-them can be read directly: **5.1% of Texans live more than 25 road miles from any
-obstetric facility, but 13.0% live more than 25 miles from one with a NICU. Past
-50 miles the ratio widens to eleven-fold — 0.4% versus 4.5%.**
+**First, the level of care.** By distance to *any* obstetric facility Texas looks
+adequate. Measured against facilities with a **neonatal intensive care unit** —
+the capability that decides outcomes in a preterm birth or hemorrhage — the share
+of women left beyond 30 minutes is **three times larger** (9.4% vs 3.0%). Panels
+(a) and (b) of Figure 1 use an identical mileage scale, so the gap reads directly:
+**5.1% of Texans are more than 25 road miles from any obstetric facility, but
+13.0% are that far from one with a NICU; past 50 miles the ratio widens
+eleven-fold.** Proximity to a door is not proximity to care, and that gap is
+exactly where preventable deaths occur.
 
-**Second, 78 counties have an open hospital where no one can deliver a baby.**
-1.73 million Texans live in them. These are not places that need a new hospital —
-they need an obstetric unit restored inside one that already exists, at a
-fraction of the cost. **No county-level desert map can see this distinction, and
-every published Texas desert map misses it.** It is the cheapest available
-intervention and nobody is currently able to target it.
+**Second, 78 counties have an open hospital where no one can deliver a baby**,
+home to 1.73 million Texans. These do not need a new hospital — they need an
+obstetric unit restored inside one that already exists, at a fraction of the cost.
+**No county-level desert map can see this distinction, and every published Texas
+desert map misses it.** It is the cheapest available intervention, and nobody can
+currently target it.
 
-**Figure 1** — *The access landscape.* (a) Road distance to the nearest
-obstetric facility, in miles. (b) Road distance to the nearest NICU-capable
-facility, on the identical scale — the two maps are directly comparable, and (b)
-is visibly darker. (c) Texas population by road-distance band, in miles. (d) Counties holding a hospital that has no
-obstetric unit (gold) versus counties with no hospital at all (pink).
+**Figure 1** — *The access landscape.* (a) Road miles to the nearest obstetric
+facility. (b) Road miles to the nearest NICU-capable facility, on the identical
+scale — directly comparable, and visibly darker. (c) Population by road-distance
+band. (d) Counties with a hospital but no obstetric unit (gold) versus counties
+with no hospital at all (pink).
 
 ![Figure 1](../results/figures/proposal_fig1_access_landscape.png)
 
@@ -89,24 +84,23 @@ studies — still the norm in this literature — understate real travel by a th
 
 **2. We solved the computational obstacle that forces others to approximate.**
 Naively, 668,757 blocks against 211 facilities is 141 million origin–destination
-pairs. Commercial routing APIs cannot price that, which is why comparable studies
-sample, aggregate to counties, or fall back on straight lines. We reformulated it:
-because only the *nearest* facility matters, a single **multi-source Dijkstra
-search on the transposed road graph** labels every node in Texas with its cost to
-the closest facility in **one pass — about three seconds** over 11.0 million nodes
-and 21.6 million road segments. No API, no quota, no sampling, no recurring cost.
-This is what makes an interactive planning tool possible at all.
+pairs — which commercial routing APIs cannot price, and why comparable studies
+sample, aggregate to counties, or fall back on straight lines. Because only the
+*nearest* facility matters, a single **multi-source Dijkstra search on the
+transposed road graph** labels every node in Texas with its cost to the closest
+facility in **one pass — about three seconds** over 11.0 million nodes and 21.6
+million road segments. No API, no quota, no sampling, no recurring cost. This is
+what makes an interactive planning tool possible at all.
 
 **3. We correct a failure mode that silently distorts this entire literature.**
 Facility lists are built by joining a services registry to a location registry on
-hospital name. We found the project's own prior list had been built with an exact
-string match, which dropped 36% of eligible hospitals and simultaneously retained
-hospitals that had already closed. The consequence is not random noise: **every
-dropped hospital manufactures a fake desert.** Our multi-stage matcher — license
-ID, then street address, then normalized fuzzy name, each blocked geographically —
-recovers 98.1% of eligible hospitals automatically (Figure 3b). Correcting this
-moved the count of Texans beyond 30 minutes from 2.58 million to 1.06 million.
-**A published desert map built on an uncorrected join is wrong by a factor of
+hospital name. The project's own prior list used an exact string match, which
+dropped 36% of eligible hospitals while retaining hospitals that had already
+closed. This is not random noise: **every dropped hospital manufactures a fake
+desert.** Our multi-stage matcher — license ID, then street address, then
+normalized fuzzy name, each blocked geographically — recovers 98.1% automatically
+(Figure 3b), moving the count of Texans beyond 30 minutes from 2.58 million to
+1.06 million. **A desert map built on an uncorrected join is wrong by a factor of
 two.** We will release the matcher as a reusable component.
 
 **4. The deliverable is a decision tool, not a paper.** The end product is a
@@ -134,39 +128,36 @@ paper and a public dataset of block-level access for all 668,757 Texas blocks.
 
 We formulate siting as the **Maximal Covering Location Problem**: choose *K* sites
 maximizing the underserved population brought within a coverage standard.
-Candidate sites are restricted to existing incorporated places, because a hospital
-needs staff, utilities and road access — an optimum in empty rangeland is not an
-answer a planner can use.
+Candidates are restricted to existing incorporated places — a hospital needs
+staff, utilities and road access, so an optimum in empty rangeland is not a usable
+answer.
 
 **This already works.** Figure 2 shows the current output: **ten new facilities
 would bring 72,737 of the 178,685 underserved women aged 15–44 within 30 minutes
-— 40.7% of the gap.** Because coverage is a monotone submodular function, the greedy
-solution carries a provable (1 − 1/e) ≈ 63% approximation guarantee, so this is a
-bounded result rather than a heuristic guess.
+— 40.7% of the gap.** Because coverage is monotone submodular, the greedy solution
+carries a provable (1 − 1/e) ≈ 63% approximation guarantee — a bounded result, not
+a heuristic guess.
 
-Grant work extends this baseline in three directions where it is genuinely
-insufficient:
+Grant work extends this baseline in three directions:
 
 - **Cost-aware ILP.** Replace "K facilities" with a real budget. Restoring an
   obstetric unit in an existing hospital and building a new facility differ by
   more than an order of magnitude in cost; the 78 hospital-but-no-obstetrics
   counties are the cheap wins, and the model must be able to say so.
 - **Capacity, via two-step floating catchment area (2SFCA).** Proximity ignores
-  whether the nearest facility can absorb the demand. Bed counts and staffing are
+  whether the nearest facility can absorb the demand; bed counts and staffing are
   already in our data.
 - **Sequential siting under uncertainty — where reinforcement learning earns its
-  place.** For a *static* problem, ILP is superior to RL and we will not pretend
-  otherwise. The real problem is not static: facilities are funded over several
-  years, populations shift, and units continue to close. That is a sequential
-  decision problem under uncertainty, and it is the setting where an RL policy
-  genuinely outperforms re-solving a deterministic program. We will benchmark RL
-  against the ILP optimum and **report the comparison honestly, including if RL
-  does not win.**
+  place.** For a *static* problem ILP beats RL, and we will not pretend otherwise.
+  But the real problem is not static: facilities are funded over several years,
+  populations shift, and units continue to close. That is a sequential decision
+  problem under uncertainty, the setting where an RL policy genuinely outperforms
+  re-solving a deterministic program. We will benchmark RL against the ILP optimum
+  and **report the comparison honestly, including if RL does not win.**
 
 **Figure 2** — *From diagnosis to decision.* (a) The ten highest-impact sites over
-territory where women 15–44 are currently beyond 30 minutes. (b) Coverage versus
-number of facilities; the curve is what lets a funder choose a defensible
-stopping point.
+territory where women 15–44 are beyond 30 minutes. (b) Coverage versus number of
+facilities — the curve that lets a funder choose a defensible stopping point.
 
 ![Figure 2](../results/figures/proposal_fig2_siting_optimizer.png)
 
@@ -204,26 +195,40 @@ facility list changed.
 
 ---
 
-## Investigators
+## Investigator(s)
 
-**Md Mohsan Khudri, PhD** (PI), Assistant Professor of Economics, Austin College.
-Overall direction, study design, empirical strategy, and translation to policy.
-Accountable for timelines, deliverables, IRB and data governance, and sponsor
-communication.
+**Md Mohsan Khudri, PhD**, Assistant Professor of Economics at Austin College,
+will serve as **Principal Investigator**. He will provide overall leadership,
+direct the research, supervise the project team, and ensure compliance with
+ethical standards, institutional policies, and conflict-of-interest
+requirements. Dr. Khudri will oversee data acquisition, security, sharing, and
+authorship practices, and will maintain clear communication with Austin College
+and the Foundation. As a health economist, he will guide the study design,
+monitor progress toward project milestones and deliverables, lead development of
+the analytical model, and translate the findings into policy-relevant
+recommendations.
 
-**Navid Mohammad Imran, PhD** (co-I), Assistant Professor of Computer Science,
-William Paterson University. Optimization formulation and the reinforcement
-learning comparison.
+**Navid Mohammad Imran, PhD**, Assistant Professor of Computer Science at
+William Paterson University of New Jersey, will serve as **Co-Principal
+Investigator**. Dr. Imran brings specialized research expertise in machine
+learning, combinatorial optimization, and algorithmic modeling for complex
+spatial and dynamic decision systems. He will lead the core technical
+architecture of the project, overseeing formulation of the cost-aware Integer
+Linear Programming models, development and training of the reinforcement
+learning framework, and the computational pipeline supporting the interactive
+decision platform.
 
-**Lokesh Das, PhD** (co-I), Assistant Professor, School of Computing, Wichita State
-University. Solution framework, data integration, and the planning platform.
-
-**Alamgir Hosain, PhD** (co-I), Research Scientist, EnviTrace, Santa Fe, New
-Mexico. Computational geoscientist. Built the preliminary study underpinning this
-proposal — the corrected facility registry, the 11-million-node road network, and
-the routing engine. Leads data acquisition and integration, the demand surfaces
-driving the optimization models, probabilistic coverage under budget constraints,
-and reproducibility of the released software.
+**Alamgir Hosain, PhD**, Research Scientist at EnviTrace, Santa Fe, New Mexico,
+will serve as **Co-Principal Investigator**. His primary responsibilities will
+include data collection and management, processing and feeding the datasets to
+the model, contributing to model development, and developing the software
+packages that turn the results into a practical tool. As a computational
+geoscientist, Dr. Hosain will oversee characterization of the geographic
+distribution of maternity care deserts, identification of prospective locations
+for new facilities, and the probabilistic approach to varying population
+coverage under minimal use of economic resources. He built the preliminary study
+underpinning this proposal — the corrected facility registry, the
+11-million-node road network, and the routing engine.
 
 ---
 
