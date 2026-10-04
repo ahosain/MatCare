@@ -107,3 +107,9 @@ tmp/
 ~$*.pptx
 ~$*.xlsx
 .~lock.*#
+
+# ---------------------------------------------------------------------------
+# Personal / contractual documents. Kept on disk, deliberately not published —
+# once pushed, a file remains in git history even if deleted later.
+# ---------------------------------------------------------------------------
+EnviTrace Letter/
